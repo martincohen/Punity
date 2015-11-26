@@ -289,7 +289,7 @@ static int jo_gif_clamp(int a, int b, int c) { return a < b ? b : a > c ? c : a;
 
 jo_gif_t jo_gif_start(const char *filename, short width, short height, short repeat, int numColors) {
 	numColors = numColors > 255 ? 255 : numColors < 2 ? 2 : numColors;
-	jo_gif_t gif = {};
+        jo_gif_t gif = {0};
 	gif.width = width;
 	gif.height = height;
 	gif.repeat = repeat;

@@ -29,7 +29,7 @@ io_read(char *path)
 //
 
 static void
-clip_rect(Rect *R, Rect *C)
+clip_rect(V4i *R, V4i *C)
 {
     R->min_x = MIN(C->max_x, MAX(R->min_x, C->min_x));
     R->min_y = MIN(C->max_y, MAX(R->min_y, C->min_y));
@@ -40,15 +40,15 @@ clip_rect(Rect *R, Rect *C)
 // Returns 0 if R does not intersect with C.
 // Returns 1 if R has NOT been clipped (is fully visible).
 // Returns 2 if R has been clipped.
-s32
-clip_rect_with_offsets(Rect *R, Rect *C, s32 *ox, s32 *oy)
+i32
+clip_rect_with_offsets(V4i *R, V4i *C, i32 *ox, i32 *oy)
 {
     if (R->max_x < C->min_x || R->min_x >= C->max_x ||
         R->max_y < C->min_y || R->min_y >= C->max_y) {
         return 0;
     }
 
-    s32 res = 1;
+    i32 res = 1;
 
     if (R->min_x < C->min_x) {
         *ox = C->min_x - R->min_x;
@@ -71,6 +71,7 @@ clip_rect_with_offsets(Rect *R, Rect *C, s32 *ox, s32 *oy)
     return res;
 }
 
+#if 0
 s32
 parse_number(char **text, u32 radix, u32 *n)
 {
@@ -85,6 +86,7 @@ parse_number(char **text, u32 radix, u32 *n)
     }
     return 0;
 }
+#endif
 
 //
 // Graphics
@@ -93,15 +95,14 @@ parse_number(char **text, u32 radix, u32 *n)
 void
 draw_set(u8 color)
 {
-    memset(_program->bitmap->data, color, bitmap_size(_program->bitmap));
+    memset(PROGRAM->bitmap->data, color, bitmap_size(PROGRAM->bitmap));
 }
 
-#define _BLIT(color) \
-    s32 _x, _y; \
+#define _BLIT(color, source_increment) \
     for (_y = 0; _y != h; ++_y) { \
         for (_x = 0; _x != w; ++_x) { \
             dst[_x] = *src ? color : dst[_x]; \
-            src++; \
+            source_increment; \
         } \
         dst += dst_fill; \
         src += src_fill; \
@@ -114,35 +115,56 @@ draw_set(u8 color)
 //}
 
 void
-draw_sprite(s32 x, s32 y, ImageSet *set, u16 index, u8 mode, u8 mask)
+set_draw(i32 x, i32 y, ImageSet *set, u16 index, u8 mode, u8 mask)
 {
     assert(index < set->count);
 
-    Rect r = { x, y, x + set->cw, y + set->ch };
+    V4i r = { x - set->pivot_x,
+              y - set->pivot_y,
+              x - set->pivot_x + set->cw,
+              y - set->pivot_y + set->ch
+            };
+
+    rect_tr(&r, PROGRAM->tx, PROGRAM->ty);
     // clip_rect(&r, &program->bitmap_rect);
-    s32 ox = 0;
-    s32 oy = 0;
-    if (clip_rect_with_offsets(&r, &_program->bitmap_rect, &ox, &oy))
+    i32 ox = 0;
+    i32 oy = 0;
+    if (clip_rect_with_offsets(&r, &PROGRAM->bitmap_rect, &ox, &oy))
     {
-        u32 w = r.max_x - r.min_x;
-        u32 h = r.max_y - r.min_y;
-        u32 sw = set->cw;
-        u32 sh = set->ch;
+        i32 w = r.max_x - r.min_x;
+        i32 h = r.max_y - r.min_y;
+        i32 sw = set->cw;
+        i32 sh = set->ch;
 
-        u32 dst_fill = _program->bitmap_rect.max_x - _program->bitmap_rect.min_x;
-        u8 *_dst = _program->bitmap->data + r.min_x + (r.min_y * dst_fill);
+        u32 dst_fill = PROGRAM->bitmap_rect.max_x - PROGRAM->bitmap_rect.min_x;
+        u8 *dst = PROGRAM->bitmap->data + r.min_x + (r.min_y * dst_fill);
 
-        u32 src_fill = sw - w;
-        u8 *_src = asset_data(set)
-                 + (index * (sw * sh))
-                 + (ox + (oy * sw));
+        i32 _x, _y;
+        if ((mode & DrawSpriteMode_FlipH) == 0)
+        {
+            u32 src_fill = sw - w;
+            u8 *src = asset_data(set)
+                     + (index * (sw * sh))
+                     + (ox + (oy * sw));
+            if (mode & DrawSpriteMode_Mask) {
+                _BLIT(mask, src++);
+            } else {
+                _BLIT(*src, src++);
+            }
+        }
+        else
+        {
+            u32 src_fill = sw + w;
+            u8 *src = asset_data(set)
+                     + (index * (sw * sh))
+                     + (ox + (oy * sw))
+                     + (w - 1);
 
-        u8 *dst = _dst;
-        u8 *src = _src;
-        if (mode & DrawSpriteMode_Mask) {
-            _BLIT(mask);
-        } else {
-            _BLIT(*src);
+            if (mode & DrawSpriteMode_Mask) {
+                _BLIT(mask, src--);
+            } else {
+                _BLIT(*src, src--);
+            }
         }
     }
 }
@@ -154,24 +176,25 @@ draw_sprite(s32 x, s32 y, ImageSet *set, u16 index, u8 mode, u8 mask)
 //   +
 
 void
-draw_sprite_ex(s32 x, s32 y, ImageSet *sprites, u16 index, u8 mode, u8 mask, u8 frame)
+set_draw_ex(i32 x, i32 y, ImageSet *sprites, u16 index, u8 mode, u8 mask, u8 frame)
 {
-    draw_sprite(x - 1, y, sprites, index, DrawSpriteMode_Mask, frame);
-    draw_sprite(x + 1, y, sprites, index, DrawSpriteMode_Mask, frame);
-    draw_sprite(x, y - 1, sprites, index, DrawSpriteMode_Mask, frame);
-    draw_sprite(x, y + 1, sprites, index, DrawSpriteMode_Mask, frame);
-    draw_sprite(x, y, sprites, index, mode, mask);
+    set_draw(x - 1, y, sprites, index, DrawSpriteMode_Mask, frame);
+    set_draw(x + 1, y, sprites, index, DrawSpriteMode_Mask, frame);
+    set_draw(x, y - 1, sprites, index, DrawSpriteMode_Mask, frame);
+    set_draw(x, y + 1, sprites, index, DrawSpriteMode_Mask, frame);
+    set_draw(x, y, sprites, index, mode, mask);
 }
 
 void
-draw_rect(Rect r, u8 color)
+rect_draw(V4i r, u8 color)
 {
-    clip_rect(&r, &_program->bitmap_rect);
+    rect_tr(&r, PROGRAM->tx, PROGRAM->ty);
+    clip_rect(&r, &PROGRAM->bitmap_rect);
     if (r.max_x != r.min_x && r.max_y != r.min_y)
     {
-        s32 row_pitch = _program->bitmap_rect.max_x - _program->bitmap_rect.min_x;
-        u8 *row = _program->bitmap->data + r.min_x + (r.min_y * row_pitch);
-        s32 w = r.max_x - r.min_x;
+        i32 row_pitch = PROGRAM->bitmap_rect.max_x - PROGRAM->bitmap_rect.min_x;
+        u8 *row = PROGRAM->bitmap->data + r.min_x + (r.min_y * row_pitch);
+        i32 w = r.max_x - r.min_x;
         while (r.max_y != r.min_y)
         {
             memset(row, color, w);
@@ -188,17 +211,19 @@ find_next(char *it, char c) {
 }
 
 DrawTextResult
-draw_text(s32 x, s32 y, char *text, u8 cf, u8 cb)
+text_draw(i32 x, i32 y, char *text, u8 cf, u8 cb)
 {
-    assert(_program->font);
+    assert(PROGRAM->font);
 
-    Rect r = rect_make_wh(x, y, _program->font->cw, _program->font->ch);
+    V4i r = recti_make_size(x, y, PROGRAM->font->cw, PROGRAM->font->ch);
 
-    if (x < _program->bitmap_rect.max_x &&
-        y < _program->bitmap_rect.max_y)
+    if ((x + PROGRAM->tx) < PROGRAM->bitmap_rect.max_x &&
+        (y + PROGRAM->ty) < PROGRAM->bitmap_rect.max_y)
     {
-        Rect rect;
-        ImageSet *font = _program->font;
+        // rect_tr(&r, PROGRAM->tx, PROGRAM->ty);
+
+        V4i rect;
+        ImageSet *font = PROGRAM->font;
         char *anchor = text;
         for (;;)
         {
@@ -209,30 +234,34 @@ draw_text(s32 x, s32 y, char *text, u8 cf, u8 cb)
                 rect.min_y = y - font->padding.min_y;
                 rect.max_x = x + (text - anchor) * font->cw + font->padding.max_x;
                 rect.max_y = y + font->ch + font->padding.max_y;
-                draw_rect(rect, cb);
+                rect_draw(rect, cb);
             }
-            s32 xp = x;
+            i32 xp = x;
             while (anchor != text) {
                 if (*anchor != ' ') {
-                    draw_sprite(xp,
+                    set_draw(xp,
                                 y,
-                                _program->font,
+                                PROGRAM->font,
                                 *anchor,
                                 DrawSpriteMode_Mask,
                                 cf);
                 }
                 anchor++;
-                xp += _program->font->cw;
+                xp += PROGRAM->font->cw;
             }
             if (*text == 0) {
                 break;
             }
             text++;
             anchor = text;
-            rect_offset(&r, 0, _program->font->ch);
+            rect_tr(&r, 0, PROGRAM->font->ch);
         }
     }
 
     DrawTextResult res = { r.max_x, r.min_y };
     return res;
 }
+
+//
+//
+//

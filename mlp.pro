@@ -10,12 +10,15 @@ CONFIG -= qt
 # CONFIG += c++11
 CONFIG += console
 
-QMAKE_CC= gcc
-QMAKE_CFLAGS += -std=gnu99
-QMAKE_CFLAGS += -mwindows
+QMAKE_CC= gcc -std=c99 -mwindows -g
+#QMAKE_CFLAGS +=
+#QMAKE_CFLAGS +=
+#QMAKE_CFLAGS +=
 
 SOURCES += \
-    src/core/target.c
+    src/core/target.c \
+    src/map.c \
+    src/test.c
 
 OTHER_FILES += \
     src/main.h \
@@ -23,6 +26,8 @@ OTHER_FILES += \
     src/res.h \
     src/main.c \
     src/res.c \
+    src/debug.c \
+    src/world.c \
     src/core/core.c \
     src/core/core.h \
     src/core/assets.c \
@@ -30,7 +35,10 @@ OTHER_FILES += \
 
 LIBS += -lmingw32
 
-LIBS += -L$$PWD/lib/sdl/mingw/lib/ -lSDL2main
-LIBS += -L$$PWD/lib/sdl/mingw/lib/ -lSDL2
-INCLUDEPATH += $$PWD/lib/sdl/mingw/include
+LIBS += -L$$PWD/lib/sdl/lib/ -lSDL2main
+LIBS += -L$$PWD/lib/sdl/lib/ -lSDL2
+INCLUDEPATH += $$PWD/lib/sdl/include
 INCLUDEPATH += $$PWD/src
+
+HEADERS += \
+    src/world.h

@@ -59,6 +59,7 @@ _buffer_push(Buffer *buffer, memi count, memi capacity)
     \
     fwrite(asset, 1, sizeof(Type), out->binary); \
     fprintf(out->header, #Type "* %s = ((" #Type " *)(_res + 0x%.8x));\n", id, out->binary_offset); \
+    fprintf(out->header, "#define _%s ((" #Type " *)(_res + 0x%.8x))\n", id, out->binary_offset); \
     \
     out->binary_offset += sizeof(Type); \
 }
@@ -176,22 +177,24 @@ _write_image(AssetWrite *out, char *id, char *path, u32 flags, u8 palette_only)
 }
 
 internal void
-_write_image_set(AssetWrite *out, char *id, char *path, u32 cw, u32 ch, Rect padding)
+_write_image_set(AssetWrite *out, char *id, char *path, u32 cw, u32 ch, i32 pivot_x, i32 pivot_y, V4i padding)
 {
     assert(cw <= 0xFF);
     assert(ch <= 0xFF);
 
-    ImageSet sprites = {0};
+    ImageSet set = {0};
     Image image = {0};
     u8 *data = read_image(path, &image, &out->palette);
-    sprites.padding = padding;
+    set.padding = padding;
 
-    sprites.cw = cw;
-    sprites.ch = ch;
-    memi rows = image.h / sprites.ch;
-    memi cols = image.w / sprites.cw;
+    set.pivot_x = pivot_x;
+    set.pivot_y = pivot_y;
+    set.cw = cw;
+    set.ch = ch;
+    memi rows = image.h / set.ch;
+    memi cols = image.w / set.cw;
     assert(rows * cols <= 0x10000);
-    sprites.count = rows * cols;
+    set.count = rows * cols;
 
     memi size = image.w * image.h;
     u8 *linear = malloc(size);
@@ -206,21 +209,21 @@ _write_image_set(AssetWrite *out, char *id, char *path, u32 cw, u32 ch, Rect pad
     // o0 o4 o8 12
     // o1 o5 o9 13
 
-    memi sprite_size = sprites.cw * sprites.ch;
+    memi sprite_size = set.cw * set.ch;
     for (memi r = 0; r != rows; ++r) {
         for (memi c = 0; c != cols; ++c) {
-            for (memi y = 0; y != sprites.ch; y++) {
-                memi l_offset = ((c + (r * cols)) * sprite_size) + (y * sprites.cw);
-                memi d_offset = (c * sprites.cw) + (r * sprite_size * cols) + (y * image.w);
+            for (memi y = 0; y != set.ch; y++) {
+                memi l_offset = ((c + (r * cols)) * sprite_size) + (y * set.cw);
+                memi d_offset = (c * set.cw) + (r * sprite_size * cols) + (y * image.w);
                 // printf("in %d out %d\n", d_offset, l_offset);
                 memcpy(linear + l_offset,
                        data + d_offset,
-                       sprites.cw);
+                       set.cw);
             }
         }
     }
 
-    write(out, Asset_SpriteList, id, &sprites, linear, size);
+    write(out, Asset_SpriteList, id, &set, linear, size);
 
     free(data);
     free(linear);
@@ -256,7 +259,7 @@ _write_tile_map(AssetWrite *out, char *id, char *path)
     TileMap map = {0};
 
     u32 n = 0;
-    s32 m = 1;
+    i32 m = 1;
     char *it = f.data;
     while (*it)
     {
@@ -362,10 +365,13 @@ void assets_add_image_palette(AssetWrite *out, char *name)
     _write_image(out, id, path, 0, 1);
 }
 
-void assets_add_image_set(AssetWrite *out, char *name, u32 cw, u32 ch, Rect padding)
+void assets_add_image_set(AssetWrite *out, char *name, u32 cell_w, u32 cell_h, i32 pivot_x, i32 pivot_y, V4i padding)
 {
     _ASSET_PATH_AND_ID;
-    _write_image_set(out, id, path, cw, ch, padding);
+    _write_image_set(out, id, path,
+                     cell_w, cell_h,
+                     pivot_x, pivot_y,
+                     padding);
 }
 
 void assets_add_tile_map(AssetWrite *out, char *name)

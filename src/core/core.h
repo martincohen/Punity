@@ -5,89 +5,162 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
+#include <stddef.h>
 #include <assert.h>
 
-#include <stdint.h>
-#include <stddef.h>
 #include "config.h"
 
 #define internal static
+#define unused(x) (void)x
 
 typedef uint8_t  u8;
-typedef int8_t   s8;
+typedef int8_t   i8;
 typedef uint16_t u16;
-typedef int16_t  s16;
+typedef int16_t  i16;
 typedef uint32_t u32;
-typedef int32_t  s32;
+typedef int32_t  i32;
 typedef uint64_t u64;
-typedef int64_t  s64;
-typedef float    r32;
-typedef double   r64;
+typedef int64_t  i64;
+typedef float    f32;
+typedef double   f64;
 typedef size_t   memi;
+typedef i32      boolean;
 
 #define is_number(c) ((c) >= '0' && (c) <= '9')
 #define is_separator_post(c) ((c) == ' ' || (c) <= '.' || (c) <= ',' || (c) <= ';')
 #define is_separator_pre(c)  ((c) == '(' || (c) <= '[' || (c) <= '{' || (c) <= '<' || (c) == 0)
 
-typedef struct Color
+#define equalf(a, b, epsilon) (fabs(b - a) <= epsilon)
+
+#define MAX(a, b) \
+  ({ __typeof__ (a) _a = (a); \
+     __typeof__ (b) _b = (b); \
+    _a > _b ? _a : _b; \
+  })
+
+#define MIN(a, b) \
+  ({ __typeof__ (a) _a = (a); \
+     __typeof__ (b) _b = (b); \
+    _a < _b ? _a : _b; \
+  })
+
+#define SWAP(T, x, y) do { T __tmp = x; x = y; y = __tmp; } while (0)
+
+#define ASSERT assert
+#define ASSERT_DEBUG assert
+
+#define ceil_div(n, a) \
+    (((n) + (a-1))/(a))
+
+//
+// Vectors
+//
+
+#define v2_inner(ax, ay, bx, by) \
+    ((ax)*(bx) + (ay)*(by))
+
+//
+// Rectangles
+//
+
+typedef struct V4i
 {
-    union {
-        struct
-        {
-            u8 r;
-            u8 g;
-            u8 b;
-            u8 a;
-        };
-        u32 rgba;
+    struct {
+        i32 min_x;
+        i32 min_y;
+        i32 max_x;
+        i32 max_y;
     };
-} Color;
+    struct {
+        i32 x;
+        i32 y;
+        i32 w;
+        i32 h;
+    };
+}
+V4i;
 
-typedef struct Rect
+typedef union V4f
 {
-    s32 min_x;
-    s32 min_y;
-    s32 max_x;
-    s32 max_y;
-} Rect;
+    struct {
+        f32 min_x;
+        f32 min_y;
+        f32 max_x;
+        f32 max_y;
+    };
+    struct {
+        f32 x;
+        f32 y;
+        f32 w;
+        f32 h;
+    };
+}
+V4f;
+
+//RectI
+//recti_make(s32 min_x, s32 min_y, s32 max_x, s32 max_y)
+//{
+//    RectI r = { min_x, min_y, max_x, max_y };
+//    return r;
+//}
+
+#define recti_make_size(x, y, w, h) ((V4i){ x, y, x + w, y + h })
+#define rectf_make_size(x, y, w, h) ((V4f){ x, y, x + w, y + h })
+
+#define rect_tr(r, tx, ty) \
+    (r)->min_x += tx; \
+    (r)->min_y += ty; \
+    (r)->max_x += tx; \
+    (r)->max_y += ty;
+
+V4i
+recti_cell(V4i *r, i32 cw, i32 ch)
+{
+    V4i result;
+    result.min_x = ((i32)r->min_x / cw);
+    result.min_y = ((i32)r->min_y / ch);
+    result.max_x = ceil_div((i32)r->max_x, cw);
+    result.max_y = ceil_div((i32)r->max_y, ch);
+
+    return result;
+}
+
+V4i
+rectf_to_cell(V4f *r, i32 cw, i32 ch)
+{
+    V4i result;
+    result.min_x = ((i32)r->min_x / cw);
+    result.min_y = ((i32)r->min_y / ch);
+    result.max_x = ceil_div((i32)r->max_x, cw);
+    result.max_y = ceil_div((i32)r->max_y, ch);
+
+    return result;
+}
 
 //
-// Type helpers.
+// Color
 //
+
+
+typedef union Color
+{
+    struct
+    {
+        u8 r;
+        u8 g;
+        u8 b;
+        u8 a;
+    };
+    u32 rgba;
+}
+Color;
 
 Color
 color_make(u8 r, u8 g, u8 b, u8 a)
 {
-    Color c = { r, g, b, a };
+    Color c = { {r, g, b, a} };
     return c;
 }
-
-Rect
-rect_make(s32 min_x, s32 min_y, s32 max_x, s32 max_y)
-{
-    Rect r = { min_x, min_y, max_x, max_y };
-    return r;
-}
-
-Rect
-rect_make_wh(s32 min_x, s32 min_y, s32 w, s32 h)
-{
-    Rect r = { min_x, min_y, min_x + w, min_y + h };
-    return r;
-}
-
-void
-rect_offset(Rect *r, s32 dx, s32 dy)
-{
-    r->min_x += dx;
-    r->max_x += dx;
-    r->min_y += dy;
-    r->max_y += dy;
-}
-
-#define MIN(a, b) ((a) < (b) ? (a) : (b))
-#define MAX(a, b) ((a) > (b) ? (a) : (b))
-#define SWAP(T, a, b) do { T tmp__ = a; a = b; b = tmp__; } while (0)
 
 //
 // Assets
@@ -142,8 +215,10 @@ typedef struct ImageSet
     Asset asset;
     u8 cw;
     u8 ch;
+    i8 pivot_x;
+    i8 pivot_y;
     u16 count;
-    Rect padding;
+    V4i padding;
 }
 ImageSet;
 
@@ -184,7 +259,7 @@ typedef enum ButtonState
 }
 ButtonState;
 
-typedef enum Buttons
+typedef enum ButtonId
 {
     Button_Left = 0,
     Button_Right,
@@ -196,11 +271,11 @@ typedef enum Buttons
     Button_Y,
     _Button_MAX
 }
-Buttons;
+ButtonId;
 
 typedef struct Button
 {
-    s32 keys[4];
+    i32 keys[4];
     u8 state;
 }
 Button;
@@ -228,7 +303,7 @@ extern void assets(AssetWrite *out);
 
 void assets_add_image(AssetWrite *out, char *path, u32 flags);
 void assets_add_image_palette(AssetWrite *out, char *path);
-void assets_add_image_set(AssetWrite *out, char *path, u32 cw, u32 ch, Rect padding);
+void assets_add_image_set(AssetWrite *out, char *path, u32 cell_w, u32 cell_h, i32 pivot_x, i32 pivot_y, V4i padding);
 void assets_add_tile_map(AssetWrite *out, char *name);
 #endif
 
@@ -260,20 +335,20 @@ typedef struct Program
     Color palette[256];
 
     // Time taken to execute step().
-    r64 time_step;
+    f64 time_step;
     // Time taken to execute whole frame.
-    r64 time_frame;
+    f64 time_frame;
 
     // Screen bitmap;
     Bitmap screen;
     // Screen coordinates.
-    Rect screen_rect;
+    V4i screen_rect;
 
     // Current drawing font.
     ImageSet *font;
     // Current target bitmap to draw into.
     Bitmap *bitmap;
-    Rect bitmap_rect;
+    V4i bitmap_rect;
     // Current clip rectangle.
 
     // Current color to use for drawing.
@@ -281,13 +356,16 @@ typedef struct Program
     // Set to 0x100 to ignore.
     u16 color;
 
-    // Custom state;
+    // Custom state.
     ProgramState state;
 
+    // Translation.
+    i32 tx;
+    i32 ty;
 } Program;
 
-static Program *_program;
-static ProgramState *_state;
+static Program *PROGRAM;
+static ProgramState *STATE;
 
 #define asset_data(asset) ((void*)(asset + 1))
 
@@ -308,36 +386,53 @@ IOReadResult;
 IOReadResult io_read(char *path);
 
 //
+// Input
+//
+
+#define button_down(button) \
+    (PROGRAM->buttons[button].state & ButtonState_Down)
+
+#define button_ended_down(button) \
+    (PROGRAM->buttons[button].state & ButtonState_EndedDown)
+
+#define button_up(button) \
+    (PROGRAM->buttons[button].state == 0)
+
+#define button_ended_up(button) \
+    (PROGRAM->buttons[button].state & ButtonState_EndedUp)
+
+//
 // Graphics
 //
 
 void draw_set(u8 color);
-void draw_clip(Rect draw_clip);
+void draw_clip(V4i draw_clip);
 
 // Draws sprite.
 typedef enum
 {
     // Color is used instead of sprite non-transparent pixels.
     DrawSpriteMode_Mask   = 0x02,
+    DrawSpriteMode_FlipV  = 0x04,
+    DrawSpriteMode_FlipH  = 0x08,
     // Frame is drawn around the sprite.
     // DrawSpriteMode_Frame  = 0x04,
 }
 DrawSpriteMode;
 
-void draw_sprite(s32 x, s32 y, ImageSet *sprites, u16 index, u8 mode, u8 mask);
-void draw_sprite_ex(s32 x, s32 y, ImageSet *sprites, u16 index, u8 mode, u8 mask, u8 frame);
+void set_draw(i32 x, i32 y, ImageSet *set, u16 index, u8 mode, u8 mask);
+void set_draw_ex(i32 x, i32 y, ImageSet *set, u16 index, u8 mode, u8 mask, u8 frame);
 
-void draw_rect(Rect rect, u8 color);
-void draw_rect_i(s32 x, s32 y, s32 w, s32 h, u8 color);
+void rect_draw(V4i rect, u8 color);
 
 typedef struct DrawTextResult
 {
-    s32 x;
-    s32 y;
+    i32 x;
+    i32 y;
 }
 DrawTextResult;
 
-DrawTextResult draw_text(s32 x, s32 y, char *text, u8 cf, u8 cb);
+DrawTextResult text_draw(i32 x, i32 y, char *text, u8 cf, u8 cb);
 
 //
 // Recorder
@@ -345,7 +440,7 @@ DrawTextResult draw_text(s32 x, s32 y, char *text, u8 cf, u8 cb);
 
 #ifdef RECORDER
 void rec_begin(char *path);
-s32  rec_active();
+i32  rec_active();
 void rec_end(void);
 #endif
 

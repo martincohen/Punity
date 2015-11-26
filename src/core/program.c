@@ -1,7 +1,7 @@
 #include <SDL2/SDL.h>
 #include "core/core.h"
 
-static Program *_program = 0;
+static Program *PROGRAM = 0;
 
 #ifdef RECORDER
 #include <lib/jo_gif.c>
@@ -24,13 +24,13 @@ rec_begin(char *path)
     u16 i;
     for (i = 0; i < 256; i++)
     {
-        _rec_gif.palette[i * 3 + 0] = _program->palette[i].r;
-        _rec_gif.palette[i * 3 + 1] = _program->palette[i].g;
-        _rec_gif.palette[i * 3 + 2] = _program->palette[i].b;
+        _rec_gif.palette[i * 3 + 0] = PROGRAM->palette[i].r;
+        _rec_gif.palette[i * 3 + 1] = PROGRAM->palette[i].g;
+        _rec_gif.palette[i * 3 + 2] = PROGRAM->palette[i].b;
     }
 }
 
-s32
+i32
 rec_active()
 {
     return _rec_active;
@@ -50,14 +50,14 @@ rec_end(void)
 void
 rec_frame()
 {
-    u32 i, x, y, o;
+    u32 x, y, o;
 #if RECORDER_SCALE > 1
     u32 sx, sy;
     Color c;
-    u8 *it = _program->_screen;
+    u8 *it = PROGRAM->_screen;
     for (sy = 0; sy != SCREEN_HEIGHT; ++sy) {
         for (sx = 0; sx != SCREEN_WIDTH; ++sx) {
-            c = _program->palette[*it++];
+            c = PROGRAM->palette[*it++];
             o = (sy*SCREEN_WIDTH*RECORDER_SCALE*RECORDER_SCALE) + (sx*RECORDER_SCALE);
             for (y = 0; y != RECORDER_SCALE; ++y) {
                 for (x = 0; x != RECORDER_SCALE; ++x) {
@@ -67,6 +67,7 @@ rec_frame()
         }
     }
 #else
+    u32 i;
     for (i = 0; i < SCREEN_WIDTH * SCREEN_HEIGHT; i++)
     {
         _rec_buffer[i] = _program->palette[_program->_screen[i]];
@@ -74,14 +75,14 @@ rec_frame()
 #endif
     /* Use 30ms delay with 40ms delay every 3 frames, this should match our
      * frame rate of 30fps (~33.3 ms) */
-    s32 delay = (_program->frame % 3 == 0) ? 4 : 3;
+    i32 delay = (PROGRAM->frame % 3 == 0) ? 4 : 3;
     jo_gif_frame(&_rec_gif, (void*) _rec_buffer, delay, 0);
 }
 
 void
 rec_draw(u32 *screen, u32 screen_pitch)
 {
-    u32 color = _program->palette[(_program->frame & 8) == 0 ? RECORDER_FRAME_COLOR_1 : RECORDER_FRAME_COLOR_2].rgba;
+    u32 color = PROGRAM->palette[(PROGRAM->frame & 8) == 0 ? RECORDER_FRAME_COLOR_1 : RECORDER_FRAME_COLOR_2].rgba;
     u32 i;
     u32 bottom = screen_pitch * (SCREEN_HEIGHT-1);
     for (i = 0; i != SCREEN_WIDTH; ++i) {
@@ -97,20 +98,24 @@ rec_draw(u32 *screen, u32 screen_pitch)
 
 #endif
 
-#define perf_delta_ms(Last) ((1e3 * (r64)(SDL_GetPerformanceCounter() - Last)) / (r64)perf_freq)
-#define perf_delta_us(Last) ((1e6 * (r64)(SDL_GetPerformanceCounter() - Last)) / (r64)perf_freq)
+#define perf_delta_ms(Last) ((1e3 * (f64)(SDL_GetPerformanceCounter() - Last)) / (f64)perf_freq)
+#define perf_delta_us(Last) ((1e6 * (f64)(SDL_GetPerformanceCounter() - Last)) / (f64)perf_freq)
 
 #define perf_collect(P, Out, Samples) \
     P.n++; \
     P.sum += perf_delta_us(P.last); \
     if (P.n == Samples) { \
-        Out = (P.sum / (r64)P.n); \
+        Out = (P.sum / (f64)P.n); \
         P.n = 0; \
         P.sum = 0.; \
     }
 
-int main(int argc, char* args[])
+int
+main(int argc, char* argv[])
 {
+    unused(argc);
+    unused(argv);
+
 //    if (argc > 1 && strcmp(args[1], "assets") == 0) {
 //        assets_make();
 //        return 0;
@@ -150,19 +155,19 @@ int main(int argc, char* args[])
     // TODO: VirtualAlloc.
     // TODO: Program stack.
 
-    _program = malloc(sizeof(Program));
-    memset(_program, 0, sizeof(Program));
+    PROGRAM = malloc(sizeof(Program));
+    memset(PROGRAM, 0, sizeof(Program));
 
-    _program->screen.data = _program->_screen;
-    _program->screen.w = SCREEN_WIDTH;
-    _program->screen.h = SCREEN_HEIGHT;
-    _program->screen_rect.max_x = _program->screen.w;
-    _program->screen_rect.max_y = _program->screen.h;
+    PROGRAM->screen.data = PROGRAM->_screen;
+    PROGRAM->screen.w = SCREEN_WIDTH;
+    PROGRAM->screen.h = SCREEN_HEIGHT;
+    PROGRAM->screen_rect.max_x = PROGRAM->screen.w;
+    PROGRAM->screen_rect.max_y = PROGRAM->screen.h;
 
-    _program->bitmap = &_program->screen;
-    _program->bitmap_rect = _program->screen_rect;
+    PROGRAM->bitmap = &PROGRAM->screen;
+    PROGRAM->bitmap_rect = PROGRAM->screen_rect;
 
-    _state = &_program->state;
+    STATE = &PROGRAM->state;
 
     //
     // Program data.
@@ -179,32 +184,32 @@ int main(int argc, char* args[])
     // State initialization.
     //
 
-    _program->buttons[Button_Left].keys[0]  = SDLK_LEFT;
-    _program->buttons[Button_Left].keys[1]  = 'a';
+    PROGRAM->buttons[Button_Left].keys[0]  = SDLK_LEFT;
+    PROGRAM->buttons[Button_Left].keys[1]  = 'a';
 
-    _program->buttons[Button_Right].keys[0] = SDLK_RIGHT;
-    _program->buttons[Button_Right].keys[1] = 'd';
+    PROGRAM->buttons[Button_Right].keys[0] = SDLK_RIGHT;
+    PROGRAM->buttons[Button_Right].keys[1] = 'd';
 
-    _program->buttons[Button_Up].keys[0] = SDLK_UP;
-    _program->buttons[Button_Up].keys[1] = 'w';
+    PROGRAM->buttons[Button_Up].keys[0] = SDLK_UP;
+    PROGRAM->buttons[Button_Up].keys[1] = 'w';
 
-    _program->buttons[Button_Down].keys[0] = SDLK_DOWN;
-    _program->buttons[Button_Down].keys[1] = 's';
+    PROGRAM->buttons[Button_Down].keys[0] = SDLK_DOWN;
+    PROGRAM->buttons[Button_Down].keys[1] = 's';
 
-    _program->buttons[Button_A].keys[0] = 'u';
-    _program->buttons[Button_A].keys[1] = 'z';
+    PROGRAM->buttons[Button_A].keys[0] = 'u';
+    PROGRAM->buttons[Button_A].keys[1] = 'z';
 
-    _program->buttons[Button_B].keys[0] = 'i';
-    _program->buttons[Button_B].keys[1] = 'x';
+    PROGRAM->buttons[Button_B].keys[0] = 'i';
+    PROGRAM->buttons[Button_B].keys[1] = 'x';
 
-    _program->buttons[Button_X].keys[0] = 'o';
-    _program->buttons[Button_X].keys[1] = 'c';
+    PROGRAM->buttons[Button_X].keys[0] = 'o';
+    PROGRAM->buttons[Button_X].keys[1] = 'c';
 
-    _program->buttons[Button_Y].keys[0] = 'p';
-    _program->buttons[Button_Y].keys[1] = 'v';
+    PROGRAM->buttons[Button_Y].keys[0] = 'p';
+    PROGRAM->buttons[Button_Y].keys[1] = 'v';
 
     init();
-    assert(_program->font);
+    assert(PROGRAM->font);
 
     //
     // Main loop.
@@ -218,11 +223,10 @@ int main(int argc, char* args[])
     u32 i;
 
     u64 perf_freq = SDL_GetPerformanceFrequency();
-    u64 perf_time;
     typedef struct PerfTime {
         u64 last;
         u64 sum;
-        s32 n;
+        i32 n;
     } PerfTime;
     PerfTime perf_step = {0};
     PerfTime perf_frame = {0};
@@ -233,13 +237,13 @@ int main(int argc, char* args[])
 //    s32 perf_step_time_n = 0;
 //    s32 perf_step_time_n = 0;
 
-    r64 time_last = 0;
-    r64 time_step = 1. / FPS;
+    f64 time_last = 0;
+    f64 time_step = 1. / FPS;
 
-    _program->running = 1;
+    PROGRAM->running = 1;
 
     Button *button;
-    while (_program->running)
+    while (PROGRAM->running)
     {
         perf_frame.last = SDL_GetPerformanceCounter();
 
@@ -250,7 +254,7 @@ int main(int argc, char* args[])
             {
 
             case SDL_QUIT:
-                _program->running = 0;
+                PROGRAM->running = 0;
                 break;
 
             case SDL_KEYUP:
@@ -275,7 +279,7 @@ int main(int argc, char* args[])
                              ? ButtonState_Down | ButtonState_EndedDown
                              : ButtonState_Up | ButtonState_EndedUp;
 
-                    button = _program->buttons;
+                    button = PROGRAM->buttons;
                     for (i = 0; i != _Button_MAX; i++)
                     {
                         if (e.key.keysym.sym == button->keys[0] ||
@@ -302,11 +306,11 @@ int main(int argc, char* args[])
         // ----------------------------------------------------------
         step();
         // ----------------------------------------------------------
-        perf_collect(perf_step, _program->time_step, 3);
+        perf_collect(perf_step, PROGRAM->time_step, 3);
 
         // Reset button's `Ended` states.
         for (i = 0; i != _Button_MAX; i++) {
-            _program->buttons[i].state &= ~(ButtonState_EndedUp | ButtonState_EndedDown);
+            PROGRAM->buttons[i].state &= ~(ButtonState_EndedUp | ButtonState_EndedDown);
         }
 
         // Draw
@@ -316,11 +320,11 @@ int main(int argc, char* args[])
         // TODO: Do the blit using screen_pitch.
         assert(screen_pitch == SCREEN_WIDTH);
         screen_it = screen_pixels;
-        it = _program->_screen;
+        it = PROGRAM->_screen;
         for (i = (SCREEN_WIDTH * SCREEN_HEIGHT) + 1;
              i != 0;
              i--) {
-            *(screen_it++) = _program->palette[*it++].rgba;
+            *(screen_it++) = PROGRAM->palette[*it++].rgba;
         }
 #ifdef RECORDER
         if (_rec_active) {
@@ -334,12 +338,12 @@ int main(int argc, char* args[])
         SDL_RenderCopy(renderer, screen_texture, NULL, NULL);
         SDL_RenderPresent(renderer);
 
-        perf_collect(perf_frame, _program->time_frame, 3);
+        perf_collect(perf_frame, PROGRAM->time_frame, 3);
 
         // Time sync
 
-        r64 time_now = SDL_GetTicks() / 1000.;
-        s32 time_wait = (s32)((time_step - (time_now - time_last)) * 1000);
+        f64 time_now = SDL_GetTicks() / 1000.;
+        i32 time_wait = (i32)((time_step - (time_now - time_last)) * 1000);
         if (time_wait > 0) {
             time_last += time_step;
             SDL_Delay(time_wait);
@@ -347,7 +351,7 @@ int main(int argc, char* args[])
             time_last = time_now;
         }
 
-        ++_program->frame;
+        ++PROGRAM->frame;
 
         // printf("wait = %0.3dms, step = %.3fus\n", time_wait, _program->time_step);
     }
@@ -356,7 +360,7 @@ int main(int argc, char* args[])
     rec_end();
 #endif
 
-    free(_program);
+    free(PROGRAM);
     SDL_DestroyTexture(screen_texture);
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);

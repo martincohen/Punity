@@ -2,7 +2,7 @@
 echo ---------------------------------------------------------------------------
 echo Compiling assets
 echo ---------------------------------------------------------------------------
-gcc -std=c99 -mwindows -o bin/assets.exe src/core/target.c -DASSETS -I%~dp0 -I%~dp0src
+gcc -o bin/assets.exe -std=gnu99 src/core/target.c -DASSETS -I%~dp0 -I%~dp0src
 
 bin\assets.exe
 rm res.bin
@@ -21,7 +21,7 @@ rem http://stackoverflow.com/questions/17620884/static-linking-of-sdl2-libraries
 rem set SDL_DEPS=-lSDL2main -lSDL2 -lwinmm -limm32 -lole32 -loleaut32 -lversion
 
 set SDL_DEPS=-lSDL2main -lSDL2
-gcc -std=c99 -o bin/mlp.exe -O2 src/core/target.c -mwindows -I%~dp0 -I%~dp0src -Ilib/sdl/include -Llib/sdl/lib -lmingw32 %SDL_DEPS%
+gcc -o bin/mlp.exe -O2 src/core/target.c -std=gnu99 -mwindows -I%~dp0 -I%~dp0src -Ilib/sdl/include -Llib/sdl/lib -lmingw32 %SDL_DEPS%
 
 strip bin\mlp.exe
 
