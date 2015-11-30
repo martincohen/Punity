@@ -1,9 +1,38 @@
 #ifndef MAIN_H
 #define MAIN_H
 
-#include "world.h"
+#include "punity_world.h"
 
-typedef struct
+enum CustomAssetType
+{
+    AssetType_Level = AssetType_Custom + 1
+};
+
+typedef struct Spawn
+{
+    u32 type;
+    V2i position;
+}
+Spawn;
+
+typedef struct Level
+{
+    TileMap *layers[8];
+    u32 layers_count;
+
+    TileMap *map_collision;
+    TileMap *map_meta;
+
+    ImageSet *set_main;
+    ImageSet *set_meta;
+
+    V2i player_start;
+    Spawn spawns[256];
+    u32 spawn_count;
+}
+Level;
+
+typedef struct Animation
 {
     ImageSet *set;
     u16 begin;
@@ -14,7 +43,7 @@ typedef struct
 }
 Animation;
 
-typedef enum
+typedef enum EntityState
 {
     EntityState_Idle = 0,
     EntityState_Brake,
@@ -22,12 +51,19 @@ typedef enum
 }
 EntityState;
 
-typedef struct
+typedef enum EntityFlags
+{
+    EntityFlag_Grounded = 0x01
+}
+EntityFlags;
+
+typedef struct Entity
 {
     u8 state;
+    u8 flags;
     i32 dx;
     i32 vx;
-    i32 vy;
+    f32 vy;
     i32 sprite_ox;
     i32 sprite_oy;
     Collider *collider;
@@ -57,7 +93,7 @@ Entity;
     ? (E->animation->sprite_mode |  DrawSpriteMode_FlipH) \
     : (E->animation->sprite_mode & ~DrawSpriteMode_FlipH)
 
-typedef struct
+typedef struct Camera
 {
     i32 x;
     i32 y;
@@ -72,7 +108,7 @@ Camera;
 #define static_array_push(Array, Count) \
     ( Array + (Array##_count++) )
 
-typedef struct
+typedef struct ProgramState
 {
     Camera camera;
 
@@ -84,6 +120,8 @@ typedef struct
     Entity *player;
 }
 ProgramState;
+
+extern ProgramState *GAME;
 
 #endif // MAIN_H
 

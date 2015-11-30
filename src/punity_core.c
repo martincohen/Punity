@@ -1,4 +1,39 @@
-#include "core/core.h"
+#include "punity_core.h"
+
+extern struct Program *PROGRAM;
+
+extern inline char *
+strpush(char *dest, char *src)
+{
+    while (*src) {
+        *dest++ = *src++;
+    }
+    *dest = 0;
+    return dest;
+}
+
+extern inline char *
+strdup(const char *str)
+{
+    memi length = strlen(str);
+    char *ret = malloc(length + 1);
+    strcpy(ret, str);
+    return ret;
+}
+
+extern inline V4i
+v4i_make_size(i32 x, i32 y, i32 w, i32 h)
+{
+    V4i v = (V4i){{ x, y, x + w, y + h }};
+    return v;
+}
+
+extern inline V4f
+v4f_make_size(f32 x, f32 y, f32 w, f32 h)
+{
+    V4f v = {{ x, y, x + w, y + h }};
+    return v;
+}
 
 //
 // IO
@@ -19,7 +54,7 @@ io_read(char *path)
         fclose(f);
         res.data[res.size] = 0;
 
-        assert(s == res.size);
+        ASSERT(s == res.size);
     }
     return res;
 }
@@ -115,15 +150,11 @@ draw_set(u8 color)
 //}
 
 void
-set_draw(i32 x, i32 y, ImageSet *set, u16 index, u8 mode, u8 mask)
+image_set_draw(i32 x, i32 y, ImageSet *set, u16 index, u8 mode, u8 mask)
 {
-    assert(index < set->count);
+    ASSERT(index < set->count);
 
-    V4i r = { x - set->pivot_x,
-              y - set->pivot_y,
-              x - set->pivot_x + set->cw,
-              y - set->pivot_y + set->ch
-            };
+    V4i r = v4i_make_size(x - set->pivot_x, y - set->pivot_y, set->cw, set->ch);
 
     rect_tr(&r, PROGRAM->tx, PROGRAM->ty);
     // clip_rect(&r, &program->bitmap_rect);
@@ -143,7 +174,7 @@ set_draw(i32 x, i32 y, ImageSet *set, u16 index, u8 mode, u8 mask)
         if ((mode & DrawSpriteMode_FlipH) == 0)
         {
             u32 src_fill = sw - w;
-            u8 *src = asset_data(set)
+            u8 *src = image_set_data(set)
                      + (index * (sw * sh))
                      + (ox + (oy * sw));
             if (mode & DrawSpriteMode_Mask) {
@@ -155,7 +186,7 @@ set_draw(i32 x, i32 y, ImageSet *set, u16 index, u8 mode, u8 mask)
         else
         {
             u32 src_fill = sw + w;
-            u8 *src = asset_data(set)
+            u8 *src = image_set_data(set)
                      + (index * (sw * sh))
                      + (ox + (oy * sw))
                      + (w - 1);
@@ -176,13 +207,25 @@ set_draw(i32 x, i32 y, ImageSet *set, u16 index, u8 mode, u8 mask)
 //   +
 
 void
-set_draw_ex(i32 x, i32 y, ImageSet *sprites, u16 index, u8 mode, u8 mask, u8 frame)
+image_set_draw_ex(i32 x, i32 y, ImageSet *sprites, u16 index, u8 mode, u8 mask, u8 frame)
 {
-    set_draw(x - 1, y, sprites, index, DrawSpriteMode_Mask, frame);
-    set_draw(x + 1, y, sprites, index, DrawSpriteMode_Mask, frame);
-    set_draw(x, y - 1, sprites, index, DrawSpriteMode_Mask, frame);
-    set_draw(x, y + 1, sprites, index, DrawSpriteMode_Mask, frame);
-    set_draw(x, y, sprites, index, mode, mask);
+    image_set_draw(x - 1, y, sprites, index, DrawSpriteMode_Mask, frame);
+    image_set_draw(x + 1, y, sprites, index, DrawSpriteMode_Mask, frame);
+    image_set_draw(x, y - 1, sprites, index, DrawSpriteMode_Mask, frame);
+    image_set_draw(x, y + 1, sprites, index, DrawSpriteMode_Mask, frame);
+    image_set_draw(x, y, sprites, index, mode, mask);
+}
+
+void
+pixel_draw(i32 x, i32 y, u8 color)
+{
+    x += PROGRAM->tx;
+    y += PROGRAM->ty;
+    if (x >= PROGRAM->bitmap_rect.min_x && x < PROGRAM->bitmap_rect.max_x &&
+        y >= PROGRAM->bitmap_rect.min_y && y < PROGRAM->bitmap_rect.max_y) {
+        u8 *m = PROGRAM->bitmap->data + (x + y * PROGRAM->bitmap->w);
+        *m = color ? color : *m;
+    }
 }
 
 void
@@ -192,13 +235,14 @@ rect_draw(V4i r, u8 color)
     clip_rect(&r, &PROGRAM->bitmap_rect);
     if (r.max_x != r.min_x && r.max_y != r.min_y)
     {
-        i32 row_pitch = PROGRAM->bitmap_rect.max_x - PROGRAM->bitmap_rect.min_x;
-        u8 *row = PROGRAM->bitmap->data + r.min_x + (r.min_y * row_pitch);
+        // i32 row_pitch = PROGRAM->bitmap_rect.max_x - PROGRAM->bitmap_rect.min_x;
+        // u8 *row = PROGRAM->bitmap->data + r.min_x + (r.min_y * row_pitch);
+        u8 *row = PROGRAM->bitmap->data + r.min_x + (r.min_y * PROGRAM->bitmap->w);
         i32 w = r.max_x - r.min_x;
         while (r.max_y != r.min_y)
         {
             memset(row, color, w);
-            row += row_pitch;
+            row += PROGRAM->bitmap->w; // row_pitch;
             r.max_y--;
         }
     }
@@ -213,9 +257,9 @@ find_next(char *it, char c) {
 DrawTextResult
 text_draw(i32 x, i32 y, char *text, u8 cf, u8 cb)
 {
-    assert(PROGRAM->font);
+    ASSERT(PROGRAM->font);
 
-    V4i r = recti_make_size(x, y, PROGRAM->font->cw, PROGRAM->font->ch);
+    V4i r = v4i_make_size(x, y, PROGRAM->font->cw, PROGRAM->font->ch);
 
     if ((x + PROGRAM->tx) < PROGRAM->bitmap_rect.max_x &&
         (y + PROGRAM->ty) < PROGRAM->bitmap_rect.max_y)
@@ -239,7 +283,7 @@ text_draw(i32 x, i32 y, char *text, u8 cf, u8 cb)
             i32 xp = x;
             while (anchor != text) {
                 if (*anchor != ' ') {
-                    set_draw(xp,
+                    image_set_draw(xp,
                                 y,
                                 PROGRAM->font,
                                 *anchor,
@@ -261,7 +305,3 @@ text_draw(i32 x, i32 y, char *text, u8 cf, u8 cb)
     DrawTextResult res = { r.max_x, r.min_y };
     return res;
 }
-
-//
-//
-//

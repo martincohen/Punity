@@ -1,70 +1,102 @@
-#include "core/core.h"
+#include "punity_core.h"
 #include "main.h"
+#include "res/res.h"
+#include <math.h>
 
-#ifdef ASSETS
-
-void
-assets(AssetWrite *out)
-{
-    assets_add_image_palette(out, "palette.png");
-    assets_add_image_set(out, "font.png", 4, 7, 0, 0, ((V4i){1, 0, 0, 0}));
-    assets_add_image_set(out, "icons.png", 7, 7, 0, 0, ((V4i){0}));
-    assets_add_image_set(out, "player_walk.png", 8, 8, 4, 8, ((V4i){0}));
-    assets_add_image_set(out, "player_idle.png", 8, 8, 4, 8, ((V4i){0}));
-    assets_add_image_set(out, "player_brake.png", 8, 8, 4, 8, ((V4i){0}));
-    assets_add_image_set(out, "tileset.png", 8, 8, 0, 0, ((V4i){0}));
-    assets_add_tile_map(out, "map.csv");
-}
-
-#else
-
-#include "world.c"
 #include "debug.c"
+
+ProgramState *GAME = 0;
+
+// TODO: The `asset_*` functions should return pointer to the asset to be set correctly.
+// TODO: For map, actually create the entities and the world and store it to the resources.
+
+// TODO: STATE should be static/malloc variable (depending on what client wants).
+//       That would simplify how it's all bound together.
+//       punity_state(size) should do the allocation in DEBUG though so that the STATE
+//       can be kept between the reloads.
+
+
 
 Animation player_walk = {
     .begin = 0,
     .end = 4,
     .sprite = 0,
-    .set = _asset_player_walk
+    .set = res_player_walk
 };
 
 Animation player_idle = {
     .begin = 0,
     .end = 1,
     .sprite = 0,
-    .set = _asset_player_idle
+    .set = res_player_idle
 };
 
 Animation player_brake = {
     .begin = 0,
     .end = 2,
     .sprite = 0,
-    .set = _asset_player_brake
+    .set = res_player_brake
 };
 
+//Level level_1 = {
+//    .layers = { res_level_0_layer1 },
+//    .layers_count = 1,
+//    .map_collision = res_level_0_collision,
+//    .map_meta = 0,
+//    .set_meta = 0,
+//    .set_main = res_image_set_main,
+
+//};
+
+//void
+//set_level(Level *level)
+//{
+//    GAME->tile_map = leve
+//}
+
+//
+// Entities
+//
+
 Entity *
-entity_add(i32 x, i32 y, i32 w, i32 h)
+entity_add(i32 x, i32 y, i32 w, i32 h, i32 ox, i32 oy)
 {
-    Entity *entity = static_array_push(STATE->entities, 1);
+    f32 fw = w * 0.5;
+    f32 fh = h * 0.5;
+    f32 fx = x + fw + (f32)ox;
+    f32 fy = y + fh - (f32)oy;
+
+
+    Entity *entity = static_array_push(GAME->entities, 1);
     *entity = (Entity){0};
-    entity->animation = static_array_push(STATE->animations, 1);
+    entity->sprite_ox = ox;
+    entity->sprite_oy = oy;
+    entity->animation = static_array_push(GAME->animations, 1);
     *entity->animation = (Animation){0};
-    entity->collider = world_add(&STATE->world, x, y, w, h, entity);
+    entity->collider = world_add(&GAME->world, fx, fy, fw, fh, entity);
 
     return entity;
 }
 
+//
+// Callbacks
+//
+
 void
 init()
 {
-    memcpy(PROGRAM->palette, &asset_palette->colors, asset_palette->colors_count * sizeof(Color));
-    PROGRAM->font = asset_font;
+    memcpy(PROGRAM->palette, &res_palette->colors, res_palette->colors_count * sizeof(Color));
+    PROGRAM->font = res_font;
+    GAME = PROGRAM->state;
 
-    STATE->player = entity_add(32, 16 - 4, 8, 8);
-    STATE->player->sprite_ox = 0;
-    STATE->player->sprite_oy = 4;
-    STATE->player->dx = 1;
-    *STATE->player->animation = player_idle;
+    GAME->world.tile_map = res_level_0_collision;
+    GAME->world.tile_rect.max_x = res_level_0_collision->w;
+    GAME->world.tile_rect.max_y = res_level_0_collision->h;
+
+    // GAME->player = entity_add(31, 15 - 4, 4, 8);
+    GAME->player = entity_add(3 * 8 + 2, 0 * 8 + 2, 4, 8, 0, 4);
+    GAME->player->dx = 1;
+    *GAME->player->animation = player_idle;
 }
 
 void
@@ -77,15 +109,15 @@ tilemap_draw(TileMap *tile_map, ImageSet *set, i32 dx, i32 dy)
     rect_tr(&r, -PROGRAM->tx, -PROGRAM->ty);
     r.min_x = MAX(0, ((r.min_x) / (i32)set->cw));
     r.min_y = MAX(0, ((r.min_y) / (i32)set->ch));
-    r.max_x = MIN(tile_map->w, ceil_div(r.max_x, set->cw));
-    r.max_y = MIN(tile_map->h, ceil_div(r.max_y, set->ch));
+    r.max_x = MIN((i32)tile_map->w, ceil_div(r.max_x, set->cw));
+    r.max_y = MIN((i32)tile_map->h, ceil_div(r.max_y, set->ch));
 
-    u16 *tile = asset_data(tile_map);
+    u16 *tile = tile_map_data(tile_map);
     for (i32 y = r.min_y; y != r.max_y; y++) {
         for (i32 x = r.min_x; x != r.max_x; x++) {
             if (tile[x] != 0xFFFF)
             {
-                set_draw(x * set->cw,
+                image_set_draw(x * set->cw,
                          y * set->ch,
                          set,
                          tile[x],
@@ -122,11 +154,26 @@ player_step(Entity *P)
 {
     i32 dx = 0;
 
+    Collision C;
+    world_test_move(&GAME->world, P->collider, 0, 1, CollisionTestMask_TileMap, &C, collision_stop);
+    P->flags = C.B ? (P->flags | EntityFlag_Grounded) : (P->flags & ~EntityFlag_Grounded);
+
     if (button_down(Button_Right)) dx = 1;
     if (button_down(Button_Left))  dx = -1;
-    if (button_ended_down(Button_X)) {
-        P->vy = -1;
+
+    if (P->flags & EntityFlag_Grounded) {
+        // printf("Grounded");
+        P->vy = 0;
+        if (button_ended_down(Button_X)) {
+            P->vy = -3;
+        }
     }
+    else
+    {
+        P->vy += 0.4;
+    }
+
+    // printf("vy %f\n", P->vy);
 
     i32 fx = 0;
     if (signof(P->vx) != dx)
@@ -200,52 +247,66 @@ player_camera_step(Entity *P, Camera *camera)
     camera->y = P->collider->y + 32;
 }
 
-boolean
-on_collision(Collider *A, Collider *B, Collision *collision)
-{
-    if (B < A) SWAP(Collider*, A, B);
-
-    if (collision) {
-    } else {
-    }
-
-    return 1;
-}
-
 static Collision collision;
+
+WORLD_ON_COLLISION(on_collision)
+{
+    if (C == 0) {
+        return 1;
+    }
+    // if (B < A) SWAP(Collider*, A, B);
+
+    if ((A == GAME->player->collider) && (B->flags & ColliderFlag_TileMap))
+    {
+        return collision_glide(A, B, C);
+    }
+    return collision_stop(A, B, C);
+}
 
 void
 step()
 {
+    // printf("\nSTEP %d\n", PROGRAM->frame);
     draw_set(COLOR_BLACK);
 
     Entity *entity;
     memi i;
 
-    player_step(STATE->player);
+    player_step(GAME->player);
 
     //
     // Update entities
     //
 
-    entity = STATE->entities;
+    entity = GAME->entities;
     for (i = 0;
-         i != STATE->entities_count;
+         i != GAME->entities_count;
          ++i, ++entity)
     {
-        world_move(&STATE->world, entity->collider, entity->vx, entity->vy, &collision);
+        if (!equalf(entity->vx, 0, 0.1) || !equalf(entity->vy, 0, WORLD_COLLISION_EPSILON))
+        {
+            world_test_move(&GAME->world,
+                            entity->collider,
+                            entity->vx, entity->vy,
+                            CollisionTestMask_All,
+                            &collision,
+                            on_collision);
 
-//        if (entity->fx > entity->vx) {
-//            entity->vx += MAX(1, (entity->fx - entity->vx) >> 1);
-//        } else if (entity->fx < entity->vx) {
-//            entity->vx -= MAX(1, (entity->vx - entity->fx) >> 1);
-//        }
+            if (!equalf(collision.end_x, entity->collider->x, WORLD_COLLISION_EPSILON) ||
+                !equalf(collision.end_y, entity->collider->y, WORLD_COLLISION_EPSILON))
+            {
+                world_move(&GAME->world,
+                           entity->collider,
+                           collision.end_x,
+                           collision.end_y);
+            }
+        }
     }
 
-    player_camera_step(STATE->player, &STATE->camera);
+    player_camera_step(GAME->player, &GAME->camera);
 
-    PROGRAM->tx = -STATE->camera.x + (SCREEN_WIDTH >> 1);
-    PROGRAM->ty = -STATE->camera.y + (SCREEN_HEIGHT >> 1);
+    PROGRAM->tx = -GAME->camera.x + (SCREEN_WIDTH >> 1);
+    PROGRAM->ty = -GAME->camera.y + (SCREEN_HEIGHT >> 1);
 
     //
     // Update animations
@@ -253,9 +314,9 @@ step()
 
     if ((PROGRAM->frame % 3) == 0)
     {
-        Animation *ani = STATE->animations;
+        Animation *ani = GAME->animations;
         for (i = 0;
-             i != STATE->animations_count;
+             i != GAME->animations_count;
              ++i, ++ani)
         {
             ani->sprite++;
@@ -269,37 +330,37 @@ step()
     // Draw
     //
 
-    tilemap_draw(asset_map, asset_tileset, 0, 0);
+    tilemap_draw(res_level_0_layer1, res_image_set_main, 0, 0);
 
     Collider *collider;
-    entity = STATE->entities;
+    entity = GAME->entities;
     for (i = 0;
-         i != STATE->entities_count;
+         i != GAME->entities_count;
          ++i, ++entity)
     {
         collider = entity->collider;
-//        rect_draw(recti_make_size(collider->x - collider->w,
-//                                  collider->y - collider->h,
-//                                  collider->w * 2,
-//                                  collider->h * 2), COLOR_SHADE_3);
-        set_draw(collider->x + entity->sprite_ox, collider->y + entity->sprite_oy,
-                 entity->animation->set,
-                 entity->animation->sprite,
-                 entity->animation->sprite_mode, 0);
+        rect_draw(v4i_make_size(roundf(collider->x - collider->w),
+                                roundf(collider->y - collider->h),
+                                collider->w * 2,
+                                collider->h * 2), COLOR_SHADE_3);
+//        image_set_draw(collider->x + entity->sprite_ox, collider->y + entity->sprite_oy,
+//                 entity->animation->set,
+//                 entity->animation->sprite,
+//                 entity->animation->sprite_mode, 0);
     }
 
     //
     // Debug
     //
 
-    debug_world_colliders_count(&STATE->world);
+    debug_world_colliders_count(&GAME->world);
 
     PROGRAM->tx = 0;
     PROGRAM->ty = 0;
-    debug_buttons(4, SCREEN_HEIGHT - asset_icons->ch - 4);
-    debug_fps(SCREEN_WIDTH - (7 * asset_font->cw) - 4,
-              SCREEN_HEIGHT - asset_font->ch - 4,
+    debug_buttons(4, SCREEN_HEIGHT - res_icons->ch - 4);
+    debug_fps(SCREEN_WIDTH - (7 * res_font->cw) - 4,
+              SCREEN_HEIGHT - res_font->ch - 4,
               PROGRAM->time_step);
+    debug_world_bucket_stats(&GAME->world, 4, 4);
+    debug_world_bucket_cells(&GAME->world, SCREEN_WIDTH - 4 - 16, 4);
 }
-
-#endif

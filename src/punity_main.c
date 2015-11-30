@@ -1,7 +1,8 @@
 #include <SDL2/SDL.h>
-#include "core/core.h"
+#include "punity_core.h"
+#include "punity_assets.h"
 
-static Program *PROGRAM = 0;
+Program *PROGRAM = 0;
 
 #ifdef RECORDER
 #include <lib/jo_gif.c>
@@ -110,16 +111,13 @@ rec_draw(u32 *screen, u32 screen_pitch)
         P.sum = 0.; \
     }
 
+#ifndef ASSETS
+
 int
-main(int argc, char* argv[])
+program_main(int argc, char* argv[])
 {
     unused(argc);
     unused(argv);
-
-//    if (argc > 1 && strcmp(args[1], "assets") == 0) {
-//        assets_make();
-//        return 0;
-//    }
 
     if (SDL_Init(SDL_INIT_VIDEO) < 0) {
         printf("SDL_Error: %s\n", SDL_GetError());
@@ -132,7 +130,7 @@ main(int argc, char* argv[])
                               WINDOW_WIDTH,
                               WINDOW_HEIGHT,
                               SDL_WINDOW_SHOWN);
-    
+
     if (window == 0) {
         printf("Window could not be created! SDL_Error: %s\n", SDL_GetError());
         return 1;
@@ -155,8 +153,7 @@ main(int argc, char* argv[])
     // TODO: VirtualAlloc.
     // TODO: Program stack.
 
-    PROGRAM = malloc(sizeof(Program));
-    memset(PROGRAM, 0, sizeof(Program));
+    PROGRAM = calloc(sizeof(Program) + sizeof(ProgramState), 1);
 
     PROGRAM->screen.data = PROGRAM->_screen;
     PROGRAM->screen.w = SCREEN_WIDTH;
@@ -167,14 +164,14 @@ main(int argc, char* argv[])
     PROGRAM->bitmap = &PROGRAM->screen;
     PROGRAM->bitmap_rect = PROGRAM->screen_rect;
 
-    STATE = &PROGRAM->state;
+    PROGRAM->state = (ProgramState*)(PROGRAM + 1);
 
     //
     // Program data.
     //
 
 //    FILE *f = fopen("assets.bin", "rb");
-//    assert(f);
+//    ASSERT(f);
 //    if (f) {
 //        fread(_program->_assets, 1, sizeof(_program->_assets), f);
 //        fclose(f);
@@ -208,8 +205,8 @@ main(int argc, char* argv[])
     PROGRAM->buttons[Button_Y].keys[0] = 'p';
     PROGRAM->buttons[Button_Y].keys[1] = 'v';
 
-    init();
-    assert(PROGRAM->font);
+    init(PROGRAM);
+    ASSERT(PROGRAM->font);
 
     //
     // Main loop.
@@ -315,10 +312,10 @@ main(int argc, char* argv[])
 
         // Draw
 
-        assert(SDL_LockTexture(screen_texture, NULL, (void**)&screen_pixels, &screen_pitch) == 0);
+        ASSERT(SDL_LockTexture(screen_texture, NULL, (void**)&screen_pixels, &screen_pitch) == 0);
         screen_pitch = screen_pitch >> 2;
         // TODO: Do the blit using screen_pitch.
-        assert(screen_pitch == SCREEN_WIDTH);
+        ASSERT(screen_pitch == SCREEN_WIDTH);
         screen_it = screen_pixels;
         it = PROGRAM->_screen;
         for (i = (SCREEN_WIDTH * SCREEN_HEIGHT) + 1;
@@ -369,5 +366,22 @@ main(int argc, char* argv[])
     return 0;
 }
 
-//#include "core/core.c"
+#endif
+
+int
+main(int argc, char* argv[])
+{
+#ifdef ASSETS
+    return assets_main(argc, argv);
+#else
+    if (argc > 1 && strcmp(argv[1], "assets") == 0) {
+        printf("Running assets compiler...");
+        return assets_main(argc, argv);
+    } else {
+        return program_main(argc, argv);
+    }
+#endif
+}
+
+//#include "punity_core.c"
 //#include "main.c"

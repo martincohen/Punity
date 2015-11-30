@@ -52,6 +52,16 @@ typedef i32      boolean;
 #define ceil_div(n, a) \
     (((n) + (a-1))/(a))
 
+enum DirectionFlags
+{
+    DirectionFlag_Left   = 0x01,
+    DirectionFlag_Top    = 0x02,
+    DirectionFlag_Right  = 0x04,
+    DirectionFlag_Bottom = 0x08,
+};
+
+inline char *strpush(char *dest, char *src);
+inline char *strdup(const char *str);
 //
 // Vectors
 //
@@ -63,7 +73,33 @@ typedef i32      boolean;
 // Rectangles
 //
 
-typedef struct V4i
+typedef union V2i
+{
+    struct {
+        i32 x;
+        i32 y;
+    };
+    struct {
+        i32 w;
+        i32 h;
+    };
+}
+V2i;
+
+typedef union V2f
+{
+    struct {
+        i32 x;
+        i32 y;
+    };
+    struct {
+        i32 w;
+        i32 h;
+    };
+}
+V2f;
+
+typedef union V4i
 {
     struct {
         i32 min_x;
@@ -104,8 +140,8 @@ V4f;
 //    return r;
 //}
 
-#define recti_make_size(x, y, w, h) ((V4i){ x, y, x + w, y + h })
-#define rectf_make_size(x, y, w, h) ((V4f){ x, y, x + w, y + h })
+inline V4i v4i_make_size(i32 x, i32 y, i32 w, i32 h);
+inline V4f v4f_make_size(f32 x, f32 y, f32 w, f32 h);
 
 #define rect_tr(r, tx, ty) \
     (r)->min_x += tx; \
@@ -113,7 +149,7 @@ V4f;
     (r)->max_x += tx; \
     (r)->max_y += ty;
 
-V4i
+inline V4i
 recti_cell(V4i *r, i32 cw, i32 ch)
 {
     V4i result;
@@ -125,7 +161,7 @@ recti_cell(V4i *r, i32 cw, i32 ch)
     return result;
 }
 
-V4i
+inline V4i
 rectf_to_cell(V4f *r, i32 cw, i32 ch)
 {
     V4i result;
@@ -155,7 +191,7 @@ typedef union Color
 }
 Color;
 
-Color
+inline Color
 color_make(u8 r, u8 g, u8 b, u8 a)
 {
     Color c = { {r, g, b, a} };
@@ -168,12 +204,14 @@ color_make(u8 r, u8 g, u8 b, u8 a)
 
 typedef enum
 {
-    Asset_Raw,
-    Asset_C,
-    Asset_Image,
-    Asset_SpriteList,
-    Asset_Palette,
-    Asset_TileMap
+    AssetType_Raw,
+    AssetType_C,
+    AssetType_Image,
+    AssetType_ImageSet,
+    AssetType_Palette,
+    AssetType_TileMap,
+
+    AssetType_Custom
 }
 AssetType;
 
@@ -183,10 +221,13 @@ AssetType;
 //    u32 flags;
 //} AssetDescriptor;
 
+
+// Deprecated.
 typedef struct Asset
 {
     u8  type;
     u32 size;
+    // u8  data[];
 }
 Asset;
 
@@ -207,6 +248,7 @@ typedef struct Image
     Asset asset;
     u32 w;
     u32 h;
+    // u8 data[];
 }
 Image;
 
@@ -219,6 +261,7 @@ typedef struct ImageSet
     i8 pivot_y;
     u16 count;
     V4i padding;
+    // u8 data[];
 }
 ImageSet;
 
@@ -227,8 +270,15 @@ typedef struct TileMap
     Asset asset;
     u32 w;
     u32 h;
+    // u16 data[];
 }
 TileMap;
+
+#define image_data(Asset) ((u8*)(Asset + 1))
+#define image_size(W, H)  (sizeof(Image) + (W) * (H) * sizeof(u8))
+#define image_set_data(Asset) ((u8*)(Asset + 1))
+#define tile_map_data(Asset) ((u16*)(Asset + 1))
+#define tile_map_size(W, H)  (sizeof(TileMap) + (W) * (H) * sizeof(u16))
 
 //
 //
@@ -280,97 +330,14 @@ typedef struct Button
 }
 Button;
 
-#ifdef ASSETS
-//
-// Assets
-//
-
-typedef struct AssetWrite {
-    FILE *header;
-    FILE *binary;
-    memi binary_offset;
-    Palette palette;
-}
-AssetWrite;
-
-typedef enum AssetWriteFlags
-{
-    AssetWriteFlag_ImageMatchPalette = 0x01,
-}
-AssetWriteFlags;
-
-extern void assets(AssetWrite *out);
-
-void assets_add_image(AssetWrite *out, char *path, u32 flags);
-void assets_add_image_palette(AssetWrite *out, char *path);
-void assets_add_image_set(AssetWrite *out, char *path, u32 cell_w, u32 cell_h, i32 pivot_x, i32 pivot_y, V4i padding);
-void assets_add_tile_map(AssetWrite *out, char *name);
-#endif
-
 //
 // Program
 //
 
-#ifndef ASSETS
-#include "src/res.h"
-#endif
+// #define asset_data(asset) ((void*)(asset + 1))
 
-#include "src/main.h"
-
-
-typedef struct Program
-{
-    u8 _screen[SCREEN_WIDTH * SCREEN_HEIGHT];
-//#ifdef ASSETS_SIZE
-//    u8 _assets[ASSETS_SIZE];
-//#endif
-
-    // True when the application is running.
-    u8 running;
-    // Current frame.
-    u32 frame;
-    // State of the input buttons.
-    Button buttons[_Button_MAX];
-    // Palette used to render screen.
-    Color palette[256];
-
-    // Time taken to execute step().
-    f64 time_step;
-    // Time taken to execute whole frame.
-    f64 time_frame;
-
-    // Screen bitmap;
-    Bitmap screen;
-    // Screen coordinates.
-    V4i screen_rect;
-
-    // Current drawing font.
-    ImageSet *font;
-    // Current target bitmap to draw into.
-    Bitmap *bitmap;
-    V4i bitmap_rect;
-    // Current clip rectangle.
-
-    // Current color to use for drawing.
-    // Only low 8-bits are actually used.
-    // Set to 0x100 to ignore.
-    u16 color;
-
-    // Custom state.
-    ProgramState state;
-
-    // Translation.
-    i32 tx;
-    i32 ty;
-} Program;
-
-static Program *PROGRAM;
-static ProgramState *STATE;
-
-#define asset_data(asset) ((void*)(asset + 1))
-
-extern void init();
-extern void step();
+void init();
+void step();
 
 //
 // IO
@@ -408,6 +375,8 @@ IOReadResult io_read(char *path);
 void draw_set(u8 color);
 void draw_clip(V4i draw_clip);
 
+void pixel_draw(i32 x, i32 y, u8 color);
+
 // Draws sprite.
 typedef enum
 {
@@ -420,8 +389,8 @@ typedef enum
 }
 DrawSpriteMode;
 
-void set_draw(i32 x, i32 y, ImageSet *set, u16 index, u8 mode, u8 mask);
-void set_draw_ex(i32 x, i32 y, ImageSet *set, u16 index, u8 mode, u8 mask, u8 frame);
+void image_set_draw(i32 x, i32 y, ImageSet *set, u16 index, u8 mode, u8 mask);
+void image_set_draw_ex(i32 x, i32 y, ImageSet *set, u16 index, u8 mode, u8 mask, u8 frame);
 
 void rect_draw(V4i rect, u8 color);
 
@@ -443,5 +412,58 @@ void rec_begin(char *path);
 i32  rec_active();
 void rec_end(void);
 #endif
+
+//
+// Program
+//
+
+
+struct ProgramState;
+
+typedef struct Program
+{
+    // Screen buffer.
+    u8 _screen[SCREEN_WIDTH * SCREEN_HEIGHT];
+
+    // True when the application is running.
+    u8 running;
+    // Current frame.
+    u32 frame;
+    // State of the input buttons.
+    Button buttons[_Button_MAX];
+    // Palette used to render screen.
+    Color palette[256];
+
+    // Time taken to execute step().
+    f64 time_step;
+    // Time taken to execute whole frame.
+    f64 time_frame;
+
+    // Screen bitmap;
+    Bitmap screen;
+    // Screen coordinates.
+    V4i screen_rect;
+
+    // Current drawing font.
+    ImageSet *font;
+    // Current target bitmap to draw into.
+    Bitmap *bitmap;
+    V4i bitmap_rect;
+    // Current clip rectangle.
+
+    // Current color to use for drawing.
+    // Only low 8-bits are actually used.
+    // Set to 0x100 to ignore.
+    u16 color;
+
+    struct ProgramState *state;
+
+    // Translation.
+    i32 tx;
+    i32 ty;
+
+} Program;
+
+extern Program *PROGRAM;
 
 #endif // CORE_H

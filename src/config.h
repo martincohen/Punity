@@ -17,10 +17,6 @@
 #define COLOR_SHADE_5     (5)
 
 #define RECORDER
-#define RECORDER_SCALE (3)
+#define RECORDER_SCALE (2)
 #define RECORDER_FRAME_COLOR_1 COLOR_WHITE
 #define RECORDER_FRAME_COLOR_2 COLOR_ACCENT
-
-#ifndef ASSETS_DIR
-#define ASSETS_DIR
-#endif

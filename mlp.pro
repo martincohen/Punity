@@ -3,42 +3,47 @@ QT += gui
 
 TARGET = mlp
 
-# DEFINES += ASSETS
-DEFINES += ASSETS_DIR=\\\"$$PWD/\\\"
+DEFINES += _DEBUG
+DEFINES += ASSETS_DIR=\\\"$$PWD/res/\\\"
 
 CONFIG -= qt
 # CONFIG += c++11
 CONFIG += console
 
 QMAKE_CC= gcc -std=c99 -mwindows -g
-#QMAKE_CFLAGS +=
-#QMAKE_CFLAGS +=
-#QMAKE_CFLAGS +=
 
 SOURCES += \
-    src/core/target.c \
-    src/map.c \
-    src/test.c
+    src/punity.c
+
+# DESTDIR = $$PWD/bin
 
 OTHER_FILES += \
-    src/main.h \
     src/config.h \
-    src/res.h \
+    src/main.h \
     src/main.c \
-    src/res.c \
+    res/res.h \
+    res/res.c \
     src/debug.c \
-    src/world.c \
-    src/core/core.c \
-    src/core/core.h \
-    src/core/assets.c \
-    src/core/program.c
+    src/test.c \
+    src/assets.c \
+    src/memory.h \
+    src/memory.c \
+    src/punity_assets.h \
+    src/punity_assets.c \
+    src/punity_core.h \
+    src/punity_core.c \
+    src/punity_main.c \
+    src/punity_world.h \
+    src/punity_world.c \
+    src/punity_tiled.h \
+    src/punity_tiled.c \
+
+INCLUDEPATH += $$PWD/src
 
 LIBS += -lmingw32
 
-LIBS += -L$$PWD/lib/sdl/lib/ -lSDL2main
-LIBS += -L$$PWD/lib/sdl/lib/ -lSDL2
-INCLUDEPATH += $$PWD/lib/sdl/include
-INCLUDEPATH += $$PWD/src
+INCLUDEPATH += $$PWD/lib
+INCLUDEPATH += $$PWD/lib/SDL/include
+LIBS += -L$$PWD/lib/SDL/lib/ -lSDL2main
+LIBS += -L$$PWD/lib/SDL/lib/ -lSDL2
 
-HEADERS += \
-    src/world.h
