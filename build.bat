@@ -1,30 +1,51 @@
-@echo off
+; @echo off
 
-rem SDL static build:
-rem The magical trick is to delete or rename the file "libSDL2.dll.a"
-rem http://stackoverflow.com/questions/17620884/static-linking-of-sdl2-libraries
-rem set SDL_DEPS=-lSDL2main -lSDL2 -lwinmm -limm32 -lole32 -loleaut32 -lversion
+set compiler=cl
 
-set SDL_DEPS=-lSDL2main -lSDL2
-set MLP_FLAGS=-std=c99 src/punity.c -mwindows -I%~dp0. -I%~dp0src -I%~dp0lib/sdl/include -L%~dp0lib/sdl/lib -lmingw32 %SDL_DEPS%
+if not exist bin mkdir bin
 
+if "%2"=="gcc" (
+	set compiler=gcc
+)
 
-echo ---------------------------------------------------------------------------
-echo Compiling assets
-echo ---------------------------------------------------------------------------
-gcc -o bin/assets.exe -g -DASSETS %MLP_FLAGS%
+if "%1"=="gcc" (
+	set compiler=gcc
+)
 
-bin\assets.exe %~dp0res/
-rem mv res\res.h src\res.h
-rem mv res\res.c src\res.c
+if "%compiler%"=="cl" (
+	echo Using MSVC
+	set common_c=..\src\main.c -nologo -D_WIN32_WINNT=0x0501 -MTd -TC -EHa- -I..\src
+	set common_l=/link /OPT:REF user32.lib gdi32.lib winmm.lib main.res
 
-echo ---------------------------------------------------------------------------
-echo Compiling program
-echo ---------------------------------------------------------------------------
+	echo Building resources...
+	rc /nologo /fo bin\main.res src\main.rc
 
-gcc -o bin/mlp.exe -O2 %MLP_FLAGS%
+	pushd bin
+	if "%1"=="release" (
+		echo Building release...
+		cl %common_c% -O2 -DRELEASE_BUILD /Gy /Oy %common_l% 
+		echo Stripping...
+		strip main.exe
+	) else (
+		echo Building debug...
+		cl %common_c% -Od -Z7 %common_l%
+	)
+	popd
+) else if "%compiler%"=="gcc" (
+	echo Using GCC
+	set common=src/main.c -o ./bin/main.exe ./bin/main.o -D_WIN32_WINNT=0x0501 -I./src -luser32 -lgdi32 -lwinmm
 
-strip bin\mlp.exe
-
-echo ---------------------------------------------------------------------------
-echo Done
+	echo Building resources...
+	windres -i src/main.rc -o bin/main.o
+	if "%1"=="release" (
+		echo Building release...
+		gcc -O2 -DRELEASE_BUILD -mwindows %common%
+		echo Stripping...
+		strip ./bin/main.exe
+	) else (
+		echo Building debug...
+		gcc -g %common%
+	)
+) else (
+	echo Invalid compiler specified.
+)

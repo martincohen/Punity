@@ -1,7 +1,4 @@
-bin/*
-lib/SDL/*
-res.bin
-res.c
-res.h
-*.suo
-*.user
+bin
+.idea
+.vs
+CMakeLists.txt
