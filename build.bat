@@ -14,7 +14,7 @@ if "%1"=="gcc" (
 
 if "%compiler%"=="cl" (
 	echo Using MSVC
-	set common_c=..\src\main.c -nologo -D_WIN32_WINNT=0x0501 -MTd -TC -EHa- -I..\src
+	set common_c=..\src\main.c -nologo -D_WIN32_WINNT=0x0501 -MTd -TC -EHa- -I..\src -I.\
 	set common_l=/link /OPT:REF user32.lib gdi32.lib winmm.lib main.res
 
 	echo Building resources...
@@ -33,7 +33,7 @@ if "%compiler%"=="cl" (
 	popd
 ) else if "%compiler%"=="gcc" (
 	echo Using GCC
-	set common=src/main.c -o ./bin/main.exe ./bin/main.o -D_WIN32_WINNT=0x0501 -I./src -luser32 -lgdi32 -lwinmm
+	set common=src/main.c -o ./bin/main.exe ./bin/main.o -D_WIN32_WINNT=0x0501 -I./src -I. -luser32 -lgdi32 -lwinmm
 
 	echo Building resources...
 	windres -i src/main.rc -o bin/main.o

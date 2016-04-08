@@ -641,7 +641,7 @@ sound_load_resource(Sound *sound, const char *resource_name)
     _sound_load_stbv(sound, stream);
 }
 
-#endif USE_STB_VORBIS
+#endif // USE_STB_VORBIS
 
 typedef struct _AudioSource
 {
@@ -684,7 +684,7 @@ sound_play(Sound *sound)
     }
 }
 
-inline i16 *_audio_source_sample(_AudioSource *source, size_t position)
+static inline i16 *_audio_source_sample(_AudioSource *source, size_t position)
 {
     size_t resampled_position = (size_t)((f32)position * source->rate);
     return source->sound->samples + ((source->position + resampled_position) * 2);
