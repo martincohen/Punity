@@ -103,7 +103,7 @@ You can run `devenv bin\main.exe` in case you're running from *Visual Studio Com
 # Thank you
  
  - [@x_rxi](https://twitter.com/x_rxi) for immense support and inspiration.
- - [@d7samurai](https://twitter.com/d7samurai) for the name *Punity*.
+ - [@d7samurai](https://twitter.com/d7samurai) for the name *Punity* and a lot of wisdom donations.
  - [@j_vanrijn](https://twitter.com/J_vanRijn) for his tall support 24/7.
  - [@cmuratori](https://twitter.com/cmuratori) for handmadehero.org
  - [@nothings](https://twitter.com/nothings) for [stb](https://github.com/nothings/stb).
