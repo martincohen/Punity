@@ -16,6 +16,8 @@ A tiny game engine with zero dependencies in C that I made for myself to make ti
 - Perfect for simple pixel art with only 255 colors (0 reserved for transparency)!
 - No need to worry about 8 bits of transparency, because you just get one!
 
+There is another project I'm working on called **Blander** which is aslo a minimal game engine that allows a lot of things that *Punity* does not. It's more bland, though: it renders in hardware,... shut up!
+
 ## Planned features
 
 **Note that the project is still in development.** By default only supports Windows, but more platforms will be possible in the future (probably first with a separate platform file for SDL2). More documentation, features, examples and fixes is underway.
