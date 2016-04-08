@@ -4,6 +4,7 @@ A tiny game engine with zero dependencies in C that I made for myself to make ti
 
 - Three simple files: `punity.c`, `punity.h` and `build.bat` all ready for you to start working.
 - Approx. 1500 lines of C code.
+- No dependencies.
 - Produces a single executable with all resources baked to it.
 - Images PNG, JPG, PSD, TGA, GIF, BMP, HDR, PIC, PNM when used with `stb_image`. (see **Integration** below)
 - Images OGG when used with `stb_vorbis`. (see **Integration** below)
