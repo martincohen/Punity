@@ -1,6 +1,6 @@
-# Features
+# Punity
 
-A tiny game engine with zero dependencies in C that I made for myself to make tiny games. It's great for game jams. It is also my kōhai course in simplicity and a tribute to my senpai and friend [rxi](twitter.com/rxi).
+A tiny game engine with zero dependencies in C that I made for myself to make tiny games. It's great for game jams. It is also my kōhai course in simplicity and a tribute to my senpai and friend [rxi](https://twitter.com/x_rxi).
 
 - Three simple files: `punity.c`, `punity.h` and `build.bat` all ready for you to start working.
 - Approx. 1500 lines of C code.
@@ -99,3 +99,11 @@ You can run `devenv bin\main.exe` in case you're running from *Visual Studio Com
 
 - `build debug|release` - Runs build with MSVC, so you'll need to run `vcvarsall.bat` or Visual Studio Command Prompt.
 - `build debug|release gcc` - Runs build with GCC (note that you need MinGW-W64 to compile successfully).
+
+# Thank you
+ 
+ - [@x_rxi](https://twitter.com/x_rxi) for immense support and inspiration.
+ - [@d7samurai](https://twitter.com/d7samurai) for the name *Punity*.
+ - [@j_vanrijn](https://twitter.com/J_vanRijn) for his tall support 24/7.
+ - [@cmuratori](https://twitter.com/cmuratori) for handmadehero.org
+ - [@nothings](https://twitter.com/nothings) for [stb](https://github.com/nothings/stb).
