@@ -76,7 +76,7 @@ typedef u32      b32;
 
 #define maximum(a, b) (a) > (b) ? (a) : (b)
 #define minimum(a, b) (a) < (b) ? (a) : (b)
-#define clamp(x, a, b)  (MAX(a, MIN(x, b)))
+#define clamp(x, a, b)  (maximum(a, minimum(x, b)))
 
 #if 0
 #if defined(_MSC_VER)
