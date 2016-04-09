@@ -8,28 +8,44 @@ A tiny game engine with zero dependencies in C that I made for myself to make ti
 - Produces a single executable with all resources baked to it.
 - Images PNG, JPG, PSD, TGA, GIF, BMP, HDR, PIC, PNM when used with `stb_image`. (see **Integration** below)
 - Images OGG when used with `stb_vorbis`. (see **Integration** below)
-- Renders all in software, this is *feature*, shut up!
+- Drawing bitmaps, texts and standard primitives all in software, this is *feature*, shut up!
 - Sounds, fonts and bitmap API available.
+- Speed. On an average machine, a game [33 grams](https://martincohen.itch.io/33-grams) utilizing previous version of Punity runs in 240x240 at ~20 micro seconds (~50000 FPS). On [GCW Zero](http://www.gcw-zero.com/specifications), the same game in 320x240 runs between 0.7ms to 2ms per frame (500-1500 FPS).
 
 ## Limitations
 
-- Perfect for use with 128x128. Not for full HD games!
+- Perfect for use with 320x240 resolution. No one will ever need more, anyway.
 - Perfect for simple pixel art with only 255 colors (0 reserved for transparency)!
 - No need to worry about 8 bits of transparency, because you just get one!
+- Limited to 30 frames per second that gives you them retro feels!
+- Fuck other platforms, **Windows** is where it's at! (see **Planned features** for more platforms)
 
 There is another project I'm working on called **Blander** which is also quite small game engine that allows a lot of things that *Punity* does not. It's more bland, though. It's much bigger than Punity, multiple files aaaaand it renders in hardware,... shut up!
 
+## Goals
+
+- **Ready-to-go instant package.** No tedious external dependencies or fussing around with linkers: download, code and build from a single package.
+- **Simplicity and minimalism.** Rather go for limitations than complexities.
+- **Portability** Only get absolute minimum from the platform (window, input and drawing/audio buffers).
+- **Optional additional features.** Plug & play addons for additional asset file formats, platforms or even scripting.
+- **No arbitrary limitations.** All the limitations in the system have their reasons (performance, API simplicity). You might be writing a retro game, but the devices today have a lot of memory and computational power to use.
+- **Two files.** Even though it's supposed to be a ready-to-go package, the essence is in two files that you can grab and use.
+
 ## Planned features
 
-**Note that the project is still in development.** By default only supports Windows, but more platforms will be possible in the future (probably first with a separate platform file for SDL2). More documentation, features, examples and fixes is underway.
+**Note that the project is still in development.** More documentation, features, examples and fixes is underway.
 
-- More drawing functions very soon (`draw_rect()`, `draw_frame()`).
-- Even more drawing functions a bit later (`draw_line()`, `draw_circle()`, etc.).
-- Live asset reloading in **debug** mode while keeping the same possibility of baking assets to executable as it has now in **release** mode.
+- **More drawing functions** very soon (`draw_rect()`, `draw_frame()`).
+- **Even more drawing functions** a bit later (`draw_line()`, `draw_circle()`, etc.).
+- **Tile maps** (with support of loading simple Tiled format and with customizable Tile elements).
+- **Draw lists** to be able to push drawing operations in arbitrary order, but to get them sorted by *z* coordinate before rendering.
+- **Live asset reloading** in *debug* mode while keeping the same possibility of baking assets to executable as it has now in *release* mode.
+- **SDL platform layer** in an optional separate file `punity_sdl.c` with additional pre-made build scripts (Windows, Linux, Mac OS X, [Dingux](http://wiki.dingoonity.org/index.php?title=Dingux:About), Raspberry Pi, etc.)
+- **Optional integration with Mason** (my other project) that provides single-file build system for C and C++ to replace tedious `.bat`/`.sh` maintenance with awesomely beautiful Lisp dialect from [rxi](https://twitter.com/x_rxi).
 
 # Usage
 
-Build is **compatible with MSVC and MinGW**.
+Build is **working with MSVC or MinGW**.
 
 1. [Download Punity](https://github.com/martincohen/Punity/archive/master.zip)
 2. Customize `main.c` and the example assets.
@@ -37,15 +53,31 @@ Build is **compatible with MSVC and MinGW**.
 
 Build script is setup to compile `main.c` as single-translation unit, so if you need another C files, include them in `main.c` directly (same as I've include `punity.c` there). If you need something else, modify `build.bat` to you likings.
 
-You can customize some aspects of **Punity** by changing macros in `config.h`.
+You can customize some aspects of **Punity** by changing macros in `config.h`, which is included automatically from `punity.h`. If you don't want this, use `#define NO_CONFIG` and specify the macros in any way you feel is better for you.
 
 To use your own building script and project structure, just grab `punity.h` and `punity.c` and use them as you see fit.
 
+Punity defines the `main()` function for you, but it gives you two other functions for you to implement as compensation:
+
+- `init()` is called to initialize your own data, load assets, etc.
+- `step()` that is called every frame; you update and draw here.
+
+## Core
+
+Punity also gives you a pointer to `CORE` (see `Core` struct in `punity.h`) to access canvas, inputs, timers, audio and memory.
+
+The `CORE` is used also within the Punity's functions to make it a bit easier on passing arguments. For example, `text_draw()` expects a font to be set in `CORE->font`. 
+
 ## Memory
 
-You can either choose to use `malloc()` to manage your memory, or you can use Punity's own facilities. Punity provides two fixed-size basic memory banks:
+Punity provides two fixed-size basic memory banks:
 
-**CORE->stack** is used to store larger amounts of temporary memory. Typically it's used store dynamic in-function buffers that are thrown away when the function ends.
+- **CORE->stack** is used to store larger amounts of temporary memory. Typically it's used store dynamic in-function buffers that are thrown away when the function ends.
+- **CORE->storage** is used for long term memory (like bitmaps, tilemaps, audio, etc.)
+
+This way, no complex memory management is needed at all. Taking memory from the banks is just a matter of one pointer change (and a few optional assertions for you convenience). Should you need more memory, just change the `STACK_CAPACITY` or `STORAGE_CAPACITY` macros in `config.h` to use more memory.
+
+Remember, you always know in advance how many entities, assets and buffers, so generally there's no need to use dynamic memory management.
 
 Get `BankState` with `bank_begin()` to store current state of the bank. This is useful if you want to do more `bank_push()` calls and free the whole memory with just one call to `bank_end()`.
 
@@ -66,9 +98,12 @@ For simpler allocations, you can just use `bank_push()` and `bank_pop()`:
 u8 *canvas = bank_push(CORE->stack, CANVAS_WIDTH * CANVAS_HEIGHT);
 
 // TODO: Draw naked women on `canvas`.
+// TODO: Blend naked women in `canvas` to the `CORE->canvas`.
 
 bank_pop(CORE->stack, canvas);
 ```
+
+Asset loading functions like `bitmap_load()` store the bitmap data to `CORE->storage` memory bank automatically. You are free to change pointer to `CORE->storage` to any other bank you have. For example it might be handy to keep asset and state memory separate, so you can write and load them to file system separately.
 
 ## Assets
 
@@ -84,12 +119,44 @@ font.png RESOURCE "res\\font.png"
 
 Please, make sure you keep the first line `icon.ico ICON "res\\icon.ico"` in there, so your application and the main window will have a nice icon (that you can customize too!).
 
-Then, in the code you load `font.png` like this:
+In the code, I usually define a `Game` struct that holds all the state and asset data like this:
 
+```c
+typedef struct
+{
+	Font font;
+	Bitmap background;
+	// ---
+}
+Game;
+
+static Game game;
+
+void init() {
+	// To load from a file.
+	bitmap_load(&game.font.bitmap, "res/font.png");
+	// To load from resource.
+	bitmap_load_resource(&game.font.bitmap, "font.png");
+
+	// To use the font.
+	CORE->font = &game.font;
+}
+
+// See the main.c for more examples.
 ```
-Bitmap bitmap;
-bitmap_load_resource(&font_bitmap, "font.png")`
-```
+
+## Drawing
+
+To customize size and scale of the canvas, change `CANVAS_WIDTH`, `CANVAS_HEIGHT` and `CANVAS_SCALE` macros in `config.h`.
+
+`CORE->canvas` is `Bitmap` struct that allows you to access the frame buffer at any time. You can either change the buffer manually, or use Punity's functions. See `punity.h` for detailed information.
+
+- `rect_draw()` - to draw a filled rectangle.
+- `frame_draw()` - to draw just an frame of a rectangle.
+- `bitmap_draw()` - to draw whole or a piece of bitmap.
+- `text_draw()` - to draw text using `CORE->font`.
+
+Currently the drawing uses painter's algorithm (last drawn is on top). I plan to add `DrawList` feature so Punity will sort the draw calls by **z** key for you.
 
 ## Integration
 
@@ -104,6 +171,7 @@ You can run `devenv bin\main.exe` in case you're running from *Visual Studio Com
 
 ## Building
 
+- `build` - Runs build with defaults (debug version of MSVC).
 - `build debug|release` - Runs build with MSVC, so you'll need to run `vcvarsall.bat` or Visual Studio Command Prompt.
 - `build debug|release gcc` - Runs build with GCC (note that you need MinGW-W64 to compile successfully).
 
@@ -117,6 +185,17 @@ You can run `devenv bin\main.exe` in case you're running from *Visual Studio Com
 - `main.c` - Example application using Punity.
 - `punity.h` - Punity's header file.
 - `punity.c` - Punity's source file.
+
+# TODO
+
+A list of tasks I keep with important changes planned to appear in upcoming releases.
+
+- Versioning scheme.
+- Clean up or even remove KEY_* constants?
+
+# Outstanding (involuntary) contributions
+
+- [@d7samurai](https://twitter.com/d7samurai) - I use a lot of his ideas and pieces of code reworked from C++ to C.
 
 # Thank you
  
