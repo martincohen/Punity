@@ -47,8 +47,8 @@ There is another project I'm working on called **Blander** which is also quite s
 
 Build is **working with MSVC or MinGW**.
 
-1. [Download Punity](https://github.com/martincohen/Punity/archive/master.zip)
-2. Customize `main.c`.
+1. [Download](https://github.com/martincohen/Punity/archive/master.zip).
+2. Edit `main.c`.
 3. Run `build` from command line to compile.
 
 Build script is setup to compile `main.c` as single-translation unit, so if you need another C files, include them in `main.c` directly (same as I've include `punity.c` there). If you need something else, modify `build.bat` to you likings.
