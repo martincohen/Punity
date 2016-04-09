@@ -2,7 +2,7 @@
 
 A tiny game engine with zero dependencies in C that I made for myself to make tiny games. It's great for game jams. It is also my kōhai course in simplicity and a tribute to my senpai and friend [rxi](https://twitter.com/x_rxi).
 
-- Three simple files: `punity.c`, `punity.h` and `build.bat` all ready for you to start working.
+- Two files: `punity.c`, `punity.h` all ready for you to start working. (maybe also grab `build.bat` when you're at it)
 - Approx. 1500 lines of C code.
 - No dependencies.
 - Produces a single executable with all resources baked to it.
