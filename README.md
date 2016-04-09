@@ -72,8 +72,8 @@ The `CORE` is used also within the Punity's functions to make it a bit easier on
 
 Punity provides two fixed-size basic memory banks:
 
-- **CORE->stack** is used to store larger amounts of temporary memory. Typically it's used store dynamic in-function buffers that are thrown away when the function ends.
-- **CORE->storage** is used for long term memory (like bitmaps, tilemaps, audio, etc.)
+- `CORE->stack` is used to store larger amounts of temporary memory. Typically it's used store dynamic in-function buffers that are thrown away when the function ends.
+- `CORE->storage` is used for long term memory (like bitmaps, tilemaps, audio, etc.)
 
 This way, no complex memory management is needed at all. Taking memory from the banks is just a matter of one pointer change (and a few optional assertions for you convenience). Should you need more memory, just change the `STACK_CAPACITY` or `STORAGE_CAPACITY` macros in `config.h` to use more memory.
 
