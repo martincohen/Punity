@@ -40,7 +40,7 @@ There is another project I'm working on called **Blander** which is also quite s
 - **Tile maps** (with support of loading simple Tiled format and with customizable Tile elements).
 - **Draw lists** to be able to push drawing operations in arbitrary order, but to get them sorted by *z* coordinate before rendering.
 - **Live asset reloading** in *debug* mode while keeping the same possibility of baking assets to executable as it has now in *release* mode.
-- **SDL platform layer** in an optional separate file `punity_sdl.c` with additional pre-made build scripts (Windows, Linux, Mac OS X, [Dingux](http://wiki.dingoonity.org/index.php?title=Dingux:About), Raspberry Pi, etc.)
+- **SDL platform layer** in an optional separate file `punity_sdl.c` with additional pre-made build scripts (Windows, Linux, Mac OS X, iOS, Android, Raspberry Pi, [Dingux](http://wiki.dingoonity.org/index.php?title=Dingux:About), etc.). This would introduce a dependency on SDL2, though.
 - **Optional integration with Mason** (my other project) that provides single-file build system for C and C++ to replace tedious `.bat`/`.sh` maintenance with awesomely beautiful Lisp dialect from [rxi](https://twitter.com/x_rxi).
 
 # Usage
@@ -48,8 +48,8 @@ There is another project I'm working on called **Blander** which is also quite s
 Build is **working with MSVC or MinGW**.
 
 1. [Download Punity](https://github.com/martincohen/Punity/archive/master.zip)
-2. Customize `main.c` and the example assets.
-3. Run `build debug` from command line to compile.
+2. Customize `main.c` and the example assets in `res/`.
+3. Run `build` from command line to compile.
 
 Build script is setup to compile `main.c` as single-translation unit, so if you need another C files, include them in `main.c` directly (same as I've include `punity.c` there). If you need something else, modify `build.bat` to you likings.
 
