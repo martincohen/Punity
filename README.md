@@ -6,8 +6,8 @@ A tiny game engine with zero dependencies in C that I made for myself to make ti
 - Approx. 1500 lines of C code.
 - No dependencies.
 - Produces a single executable with all resources baked to it.
-- Images PNG, JPG, PSD, TGA, GIF, BMP, HDR, PIC, PNM when used with `stb_image`. (see **Integration** below)
-- Images OGG when used with `stb_vorbis`. (see **Integration** below)
+- Images in PNG, JPG, PSD, TGA, GIF, BMP, HDR, PIC, PNM when used with `stb_image`. (see **Integration** below)
+- Sounds in OGG when used with `stb_vorbis`. (see **Integration** below)
 - Drawing bitmaps, texts and standard primitives all in software, this is *feature*, shut up!
 - Sounds, fonts and bitmap API available.
 - Speed. On an average machine, a game [33 grams](https://martincohen.itch.io/33-grams) utilizing previous version of Punity runs in 240x240 at ~20 micro seconds (~50000 FPS). On [GCW Zero](http://www.gcw-zero.com/specifications), the same game in 320x240 runs between 0.7ms to 2ms per frame (500-1500 FPS).
