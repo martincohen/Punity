@@ -29,15 +29,17 @@ There is another project I'm working on called **Blander** which is aslo a minim
 
 # Usage
 
-Build is **compatible with MSVC**. **MinGW** is also available, though you'll need MinGW-W64 or TDM because of some Windows headers (notably `dsound.h`). I'll take a look at what can be done to avoid this in the future.
+Build is **compatible with MSVC and MinGW**.
 
 1. [Download Punity](https://github.com/martincohen/Punity/archive/master.zip)
-2. Customize `src/main.c` and the example assets.
+2. Customize `main.c` and the example assets.
 3. Run `build debug` from command line to compile.
 
-Build script is setup to compile `src/main.c` as single-translation unit, so if you need another C files, include them in `src/main.c` directly (same as I've include `punity.c` there). If you need something else, modify `build.bat` to you likings.
+Build script is setup to compile `main.c` as single-translation unit, so if you need another C files, include them in `main.c` directly (same as I've include `punity.c` there). If you need something else, modify `build.bat` to you likings.
 
 You can customize some aspects of **Punity** by changing macros in `config.h`.
+
+To use your own building script and project structure, just grab `punity.h` and `punity.c` and use them as you see fit.
 
 ## Memory
 
@@ -70,17 +72,17 @@ bank_pop(CORE->stack, canvas);
 
 ## Assets
 
-For tilemaps, images, audio, or other additional files, you can either choose to access the files directly, or to pack them with the executable. To do that, take a peek at `src/main.rc`. It looks like this:
+For tilemaps, images, audio, or other additional files, you can either choose to access the files directly, or to pack them with the executable. To do that, take a peek at `main.rc`. It looks like this:
 
 ```
 Format:
 <ResourceIdentifier> RESOURCE "<ResourcePath>"
 
 Example:
-font.png RESOURCE "src\\font.png"
+font.png RESOURCE "res\\font.png"
 ```
 
-Please, make sure you keep the first line `icon.ico ICON "src\\icon.ico"` in there, so your application and the main window will have a nice icon (that you can customize too!).
+Please, make sure you keep the first line `icon.ico ICON "res\\icon.ico"` in there, so your application and the main window will have a nice icon (that you can customize too!).
 
 Then, in the code you load `font.png` like this:
 
@@ -89,7 +91,9 @@ Bitmap bitmap;
 bitmap_load_resource(&font_bitmap, "font.png")`
 ```
 
-Punity is prepared for use with [stb_image](https://github.com/nothings/stb/blob/master/stb_image.h) or [stb_vorbis](https://github.com/nothings/stb/blob/master/stb_vorbis.c) to load images and audio files. The versions that I'm using are available in `src/` directory.
+## Integration
+
+Punity is prepared for use with [stb_image](https://github.com/nothings/stb/blob/master/stb_image.h) or [stb_vorbis](https://github.com/nothings/stb/blob/master/stb_vorbis.c) to load images and audio files. The versions that I'm using are available in `lib/` directory.
 
 - In `config.h` enable `USE_STB_IMAGE` macro. It'll allow you to use `bitmap_load` and `bitmap_load_resource` to load PNG, GIS, PSD and more.
 - In `config.h` enable `USE_STB_VORBIS` macro. It'll allow you to use `sound_load` and `sound_load_resource` to load or stream OGG files.
@@ -102,6 +106,17 @@ You can run `devenv bin\main.exe` in case you're running from *Visual Studio Com
 
 - `build debug|release` - Runs build with MSVC, so you'll need to run `vcvarsall.bat` or Visual Studio Command Prompt.
 - `build debug|release gcc` - Runs build with GCC (note that you need MinGW-W64 to compile successfully).
+
+## Files
+
+- `mingw/_mingw_unicode.h` & `mingw/dsound.h` - Provided for your convenience to be able to build with default MinGW installation. This file is taken from MinGW-W64 project.
+- `lib/stb_image.h` - Optional library to load images.
+- `lib/stb_vorbis.c` - Optional library to load ogg audio files.
+- `build.bat` - MSVC and MinGW build batch file.
+- `config.h` - Example configuration file that customizes Punity. Can be switched off with using `#define NO_CONFIG`
+- `main.c` - Example application using Punity.
+- `punity.h` - Punity's header file.
+- `punity.c` - Punity's source file.
 
 # Thank you
  

@@ -907,10 +907,10 @@ static LPDIRECTSOUNDBUFFER _win32_audio_buffer = 0;
 static WAVEFORMATEX _win32_audio_format = {0};
 static DSBUFFERDESC _win32_audio_buffer_description = {0};
 
-#define DIRECT_SOUND_CREATE(name) \
-    HRESULT name(LPCGUID pcGuidDevice, LPDIRECTSOUND8 *ppDS, LPUNKNOWN pUnkOuter)
-
-typedef DIRECT_SOUND_CREATE(DirectSoundCreateF);
+typedef HRESULT(WINAPI*DirectSoundCreate8F)(LPGUID,LPDIRECTSOUND8*,LPUNKNOWN);
+//#define DIRECT_SOUND_CREATE(name) \
+//    HRESULT name(LPCGUID pcGuidDevice, LPDIRECTSOUND8 *ppDS, LPUNKNOWN pUnkOuter)
+//typedef DIRECT_SOUND_CREATE(DirectSoundCreateF);
 
 static bool
 _win32_sound_init()
@@ -923,19 +923,18 @@ _win32_sound_init()
         return 0;
     }
 
-    DirectSoundCreateF *DirectSoundCreate =
-            (DirectSoundCreateF *)GetProcAddress(dsound_lib, "DirectSoundCreate8");
-    if (!DirectSoundCreate) {
-        printf("GetProcAddress(DirectSoundCreate) failed.\n");
+    DirectSoundCreate8F DirectSoundCreate8 =
+            (DirectSoundCreate8F)GetProcAddress(dsound_lib, "DirectSoundCreate8");
+    if (!DirectSoundCreate8) {
+        printf("GetProcAddress(DirectSoundCreate8) failed.\n");
         return 0;
     }
 
-    hr = DirectSoundCreate(0, &_win32_direct_sound, 0);
+	hr = DirectSoundCreate8(0, &_win32_direct_sound, 0);
     if (hr != DS_OK) {
         printf("DirectSoundCreate failed.\n");
         return 0;
     }
-
 
     hr = IDirectSound8_SetCooperativeLevel(_win32_direct_sound, _win32_window, DSSCL_PRIORITY);
     if (hr != DS_OK) {
@@ -955,7 +954,7 @@ _win32_sound_init()
     }
 
     _win32_audio_format.wFormatTag = WAVE_FORMAT_PCM;
-    _win32_audio_format.nChannels = 2;
+    _win32_audio_format.nChannels = _SOUND_CHANNELS;
     _win32_audio_format.nSamplesPerSec = SOUND_SAMPLE_RATE;
     _win32_audio_format.wBitsPerSample = 16;
     _win32_audio_format.nBlockAlign = (_win32_audio_format.nChannels * _win32_audio_format.wBitsPerSample) / 8;
@@ -993,14 +992,13 @@ _win32_sound_init()
         return 0;
     }
 
-    IDirectSoundBuffer8_SetFormat(_win32_audio_buffer, &_win32_audio_format);
+    // IDirectSoundBuffer8_SetFormat(_win32_audio_buffer, &_win32_audio_format);
 
     // Clear the initial buffer.
 
     LPVOID region1, region2;
     DWORD region1_size, region2_size;
 
-#if 0
     hr = IDirectSoundBuffer8_Lock(_win32_audio_buffer,
                                   0, _win32_audio_buffer_description.dwBufferBytes,
                                   (LPVOID *)&region1, &region1_size,
@@ -1014,7 +1012,6 @@ _win32_sound_init()
                                    region1, region1_size,
                                    region2, region2_size);
     }
-#endif
 
     hr = IDirectSoundBuffer8_Play(_win32_audio_buffer, 0, 0, DSBPLAY_LOOPING);
 
@@ -1022,7 +1019,6 @@ _win32_sound_init()
 	{
 		ASSERT(0);
 	}
-
     return 1;
 }
 

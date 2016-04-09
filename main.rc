@@ -1,0 +1,4 @@
+icon.ico ICON "res\\icon.ico"
+font.png RESOURCE "res\\font.png"
+sound1.ogg RESOURCE "res\\sound2.ogg"
+sound2.ogg RESOURCE "res\\sound2-16kHz.ogg"

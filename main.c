@@ -1,4 +1,4 @@
-#include "..\punity.c"
+#include "punity.c"
 
 static Font font;
 static Sound sound1;

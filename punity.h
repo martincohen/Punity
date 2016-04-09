@@ -15,7 +15,9 @@
 #include <stdbool.h>
 #include <assert.h>
 
+#ifndef NO_CONFIG
 #include "config.h"
+#endif
 
 #define PLATFORM_WINDOWS 1
 
