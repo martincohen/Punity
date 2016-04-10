@@ -89,37 +89,6 @@ typedef u32      b32;
 #define minimum(a, b) (a) < (b) ? (a) : (b)
 #define clamp(x, a, b)  (maximum(a, minimum(x, b)))
 
-#if 0
-#if defined(_MSC_VER)
-
-// #define maximum(a, b) \
-//   ({ decltype(a) _a = (a); \
-//      decltype(b) _b = (b); \
-//     _a > _b ? _a : _b; \
-//   })
-
-// #define minimum(a, b) \
-//   ({ decltype(a) _a = (a); \
-//      decltype(b) _b = (b); \
-//     _a < _b ? _a : _b; \
-//   })
-
-#elif defined(__GCC__)
-
-#define maximum(a, b) \
-  ({ __typeof__ (a) _a = (a); \
-     __typeof__ (b) _b = (b); \
-    _a > _b ? _a : _b; \
-  })
-
-#define minimum(a, b) \
-  ({ __typeof__ (a) _a = (a); \
-     __typeof__ (b) _b = (b); \
-    _a < _b ? _a : _b; \
-  })
-#endif
-#endif
-
 //
 // Utility
 //

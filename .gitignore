@@ -2,3 +2,4 @@ bin
 .idea
 .vs
 CMakeLists.txt
+NOTES.md

@@ -26,16 +26,16 @@
 #undef C
 #endif
 
-#define _WINDOW_WIDTH  (CANVAS_WIDTH  * CANVAS_SCALE)
-#define _WINDOW_HEIGHT (CANVAS_HEIGHT * CANVAS_SCALE)
-#define _FRAME_TIME    (1.0/30.0)
+#define PUNP_WINDOW_WIDTH  (CANVAS_WIDTH  * CANVAS_SCALE)
+#define PUNP_WINDOW_HEIGHT (CANVAS_HEIGHT * CANVAS_SCALE)
+#define PUNP_FRAME_TIME    (1.0/30.0)
 
-#define _SOUND_CHANNELS 2
-#define _SOUND_BUFFER_CHUNK_COUNT 16
-#define _SOUND_BUFFER_CHUNK_SAMPLES  3000
-#define _SOUND_SAMPLES_TO_BYTES(samples) ((samples) * (sizeof(i16) * _SOUND_CHANNELS))
-#define _SOUND_BYTES_TO_SAMPLES(bytes) ((bytes) / (sizeof(i16) * _SOUND_CHANNELS))
-#define _SOUND_BUFFER_BYTES (_SOUND_SAMPLES_TO_BYTES(_SOUND_BUFFER_CHUNK_COUNT * _SOUND_BUFFER_CHUNK_SAMPLES))
+#define PUNP_SOUND_CHANNELS 2
+#define PUNP_SOUND_BUFFER_CHUNK_COUNT 16
+#define PUNP_SOUND_BUFFER_CHUNK_SAMPLES  3000
+#define PUNP_SOUND_SAMPLES_TO_BYTES(samples) ((samples) * (sizeof(i16) * PUNP_SOUND_CHANNELS))
+#define PUNP_SOUND_BYTES_TO_SAMPLES(bytes) ((bytes) / (sizeof(i16) * PUNP_SOUND_CHANNELS))
+#define PUNP_SOUND_BUFFER_BYTES (PUNP_SOUND_SAMPLES_TO_BYTES(PUNP_SOUND_BUFFER_CHUNK_COUNT * PUNP_SOUND_BUFFER_CHUNK_SAMPLES))
 
 Core *CORE = 0;
 
@@ -437,8 +437,8 @@ bitmap_init(Bitmap *bitmap, i32 width, i32 height, void *pixels, int bpp)
                     ix = palette->colors_count;
                     palette->colors[ix] = *pixels_it;
                     palette->colors_count++;
-                    printf("[palette] + #%0.2x %0.2x%0.2x%0.2x%0.2x\n",
-                           ix, pixel.r, pixel.g, pixel.b, pixel.a);
+                    // printf("[palette] + #%0.2x %0.2x%0.2x%0.2x%0.2x\n",
+                    //        ix, pixel.r, pixel.g, pixel.b, pixel.a);
                 }
                 next:;
                 // Write the indexed color.
@@ -492,10 +492,10 @@ bitmap_load_resource(Bitmap *bitmap, const char *resource_name)
 
 #endif
 
-#define _BLIT(color, source_increment) \
-    for (_y = 0; _y != h; ++_y) { \
-        for (_x = 0; _x != w; ++_x) { \
-            dst[_x] = *src ? color : dst[_x]; \
+#define PUNP_BLIT(color, source_increment) \
+    for (punp_blit_y = 0; punp_blit_y != h; ++punp_blit_y) { \
+        for (punp_blit_x = 0; punp_blit_x != w; ++punp_blit_x) { \
+            dst[punp_blit_x] = *src ? color : dst[punp_blit_x]; \
             source_increment; \
         } \
         dst += dst_fill; \
@@ -510,17 +510,17 @@ bitmap_draw(i32 x, i32 y, i32 pivot_x, i32 pivot_y, Bitmap *bitmap, Rect *bitmap
     ASSERT(bitmap);
     ASSERT(clip_check());
 
-    Rect _bitmap_rect;
+    Rect p_bitmap_rect;
     if (bitmap_rect) {
         ASSERT(rect_check_limits(bitmap_rect, 0, 0, bitmap->width, bitmap->height));
-        _bitmap_rect = *bitmap_rect;
+        p_bitmap_rect = *bitmap_rect;
     } else {
-        _bitmap_rect = rect_make_size(0, 0, bitmap->width, bitmap->height);
+        p_bitmap_rect = rect_make_size(0, 0, bitmap->width, bitmap->height);
     }
 
     Rect rect = rect_make_size(x - pivot_x, y - pivot_y,
-                               _bitmap_rect.max_x - _bitmap_rect.min_x,
-                               _bitmap_rect.max_y - _bitmap_rect.min_y);
+                               p_bitmap_rect.max_x - p_bitmap_rect.min_x,
+                               p_bitmap_rect.max_y - p_bitmap_rect.min_y);
 
     rect_tr(&rect, CORE->translate_x, CORE->translate_y);
     i32 sx = 0;
@@ -529,24 +529,24 @@ bitmap_draw(i32 x, i32 y, i32 pivot_x, i32 pivot_y, Bitmap *bitmap, Rect *bitmap
         i32 w = rect.max_x - rect.min_x;
         i32 h = rect.max_y - rect.min_y;
 
-        // i32 sw = (_bitmap_rect.max_x - _bitmap_rect.min_x) - sx;
-        // i32 sh = (_bitmap_rect.max_y - _bitmap_rect.min_y) - sy;
-        sx += _bitmap_rect.left;
-        sy += _bitmap_rect.top;
+        // i32 sw = (p_bitmap_rect.max_x - p_bitmap_rect.min_x) - sx;
+        // i32 sh = (p_bitmap_rect.max_y - p_bitmap_rect.min_y) - sy;
+        sx += p_bitmap_rect.left;
+        sy += p_bitmap_rect.top;
 
         u32 dst_fill = CORE->canvas->width;
         u8 *dst = CORE->canvas->pixels + rect.min_x + (rect.min_y * dst_fill);
 
-        i32 _x, _y;
+        i32 punp_blit_x, punp_blit_y;
         if ((flags & DrawFlags_FlipH) == 0) {
             u32 src_fill = bitmap->width - w;
             u8 *src = bitmap->pixels
                       // + (index * (sw * sh))
                       + (sx + (sy * bitmap->width));
             if (flags & DrawFlags_Mask) {
-                _BLIT(color, src++);
+                PUNP_BLIT(color, src++);
             } else {
-                _BLIT(*src, src++);
+                PUNP_BLIT(*src, src++);
             }
         }
         else {
@@ -557,15 +557,15 @@ bitmap_draw(i32 x, i32 y, i32 pivot_x, i32 pivot_y, Bitmap *bitmap, Rect *bitmap
                       + (w - 1);
 
             if (flags & DrawFlags_Mask) {
-                _BLIT(color, src--);
+                PUNP_BLIT(color, src--);
             } else {
-                _BLIT(*src, src--);
+                PUNP_BLIT(*src, src--);
             }
         }
     }
 }
 
-#undef _BLIT
+#undef PUNP_BLIT
 
 void
 text_draw(i32 x, i32 y, const char *text, u8 color)
@@ -607,27 +607,27 @@ text_draw(i32 x, i32 y, const char *text, u8 color)
 #if USE_STB_VORBIS
 
 static void
-_sound_load_stbv(Sound *sound, stb_vorbis *stream)
+punp_sound_load_stbv(Sound *sound, stb_vorbis *stream)
 {
     stb_vorbis_info info = stb_vorbis_get_info(stream);
     sound->rate = info.sample_rate;
     sound->samples_count = stb_vorbis_stream_length_in_samples(stream);
-    sound->samples = bank_push(CORE->storage, _SOUND_SAMPLES_TO_BYTES(sound->samples_count));
+    sound->samples = bank_push(CORE->storage, PUNP_SOUND_SAMPLES_TO_BYTES(sound->samples_count));
 
     static i16 buffer[1024];
     i16 *it = sound->samples;
     int samples_read_per_channel;
     for (; ;) {
         int samples_read_per_channel =
-                stb_vorbis_get_samples_short_interleaved(stream, _SOUND_CHANNELS, buffer, 1024);
+                stb_vorbis_get_samples_short_interleaved(stream, PUNP_SOUND_CHANNELS, buffer, 1024);
 
         if (samples_read_per_channel == 0) {
             break;
         }
 
         // 2 channels, 16 bits per sample.
-        memcpy(it, buffer, _SOUND_SAMPLES_TO_BYTES(samples_read_per_channel));
-        it += samples_read_per_channel * _SOUND_CHANNELS;
+        memcpy(it, buffer, PUNP_SOUND_SAMPLES_TO_BYTES(samples_read_per_channel));
+        it += samples_read_per_channel * PUNP_SOUND_CHANNELS;
     }
 
     stb_vorbis_close(stream);
@@ -642,7 +642,7 @@ sound_load(Sound *sound, const char *path)
     stb_vorbis *stream = stb_vorbis_open_filename(path, &error, 0);
     ASSERT(!error && stream);
 
-    _sound_load_stbv(sound, stream);
+    punp_sound_load_stbv(sound, stream);
 }
 
 void
@@ -661,36 +661,36 @@ sound_load_resource(Sound *sound, const char *resource_name)
 
     ASSERT(!error && stream);
 
-    _sound_load_stbv(sound, stream);
+    punp_sound_load_stbv(sound, stream);
 }
 
 #endif // USE_STB_VORBIS
 
-typedef struct _AudioSource
+typedef struct PunPAudioSource
 {
     Sound *sound;
     f32 rate;
     size_t position;
-    struct _AudioSource *next;
+    struct PunPAudioSource *next;
 }
-_AudioSource;
+PunPAudioSource;
 
-static _AudioSource *_audio_source_pool = 0;
-static _AudioSource *_audio_source_playback = 0;
+static PunPAudioSource *punp_audio_source_pool = 0;
+static PunPAudioSource *punp_audio_source_playback = 0;
 
 void
 sound_play(Sound *sound)
 {
-    _AudioSource *source = 0;
-    if (_audio_source_pool == 0) {
+    PunPAudioSource *source = 0;
+    if (punp_audio_source_pool == 0) {
         // Pool is empty, therefore we must allocate a new source.
-        source = bank_push(CORE->storage, sizeof(_AudioSource));
-		printf("Allocating audio source.\n");
+        source = bank_push(CORE->storage, sizeof(PunPAudioSource));
+		// printf("Allocating audio source.\n");
     } else {
         // We have something in the pool.
-        source = _audio_source_pool;
-        _audio_source_pool = source->next;
-		printf("Pooling audio source.\n");
+        source = punp_audio_source_pool;
+        punp_audio_source_pool = source->next;
+		// printf("Pooling audio source.\n");
     }
 
     if (source)
@@ -698,16 +698,17 @@ sound_play(Sound *sound)
         // Playback is in 48000
         // Audio is in 24000
         // Audio must advance it's position by half sample for each playback sample.
-        // rate = sound->rate / _SOUND_RATE
-        memset(source, 0, sizeof(_AudioSource));
+        // rate = sound->rate / PUNP_SOUND_RATE
+        memset(source, 0, sizeof(PunPAudioSource));
         source->sound = sound;
         source->rate = (f32)sound->rate / (f32)SOUND_SAMPLE_RATE;
-        source->next = _audio_source_playback;
-        _audio_source_playback = source;
+        source->next = punp_audio_source_playback;
+        punp_audio_source_playback = source;
     }
 }
 
-static inline i16 *_audio_source_sample(_AudioSource *source, size_t position)
+static inline i16 *
+punp_audio_source_sample(PunPAudioSource *source, size_t position)
 {
     size_t resampled_position = (size_t)((f32)position * source->rate);
     return source->sound->samples + ((source->position + resampled_position) * 2);
@@ -716,7 +717,7 @@ static inline i16 *_audio_source_sample(_AudioSource *source, size_t position)
 // Called from platform to fill in the audio buffer.
 //
 static void
-_sound_mix(i16 *buffer, size_t samples_count)
+punp_sound_mix(i16 *buffer, size_t samples_count)
 {
     BankState bank_state = bank_begin(CORE->stack);
 
@@ -746,8 +747,8 @@ _sound_mix(i16 *buffer, size_t samples_count)
     size_t sound_samples;
     size_t sound_samples_remaining;
     Sound *sound;
-	_AudioSource **it = &_audio_source_playback;
-	_AudioSource *source;
+	PunPAudioSource **it = &punp_audio_source_playback;
+	PunPAudioSource *source;
 
     while (*it)
 	{
@@ -768,7 +769,7 @@ _sound_mix(i16 *buffer, size_t samples_count)
              i != sound_samples;
              ++i)
         {
-            sample = _audio_source_sample(source, i);
+            sample = punp_audio_source_sample(source, i);
             // *it0++ += sound->samples[i * 2 + 0];
             // *it1++ += sound->samples[i * 2 + 1];
             *it0++ += sample[0];
@@ -780,8 +781,8 @@ _sound_mix(i16 *buffer, size_t samples_count)
         if (source->position == source->sound->samples_count)
 		{
 			*it = source->next;
-            source->next = _audio_source_pool;
-            _audio_source_pool = source;
+            source->next = punp_audio_source_pool;
+            punp_audio_source_pool = source;
         } else {
 			it = &source->next;
 		}
@@ -814,9 +815,9 @@ _sound_mix(i16 *buffer, size_t samples_count)
 // ----------------------------------------------------------------------------
 // ----------------------------------------------------------------------------
 
-static HINSTANCE _win32_instance = 0;
-static HWND _win32_window = 0;
-static i64 _win32_perf_counter_frequency;
+static HINSTANCE punp_win32_instance = 0;
+static HWND punp_win32_window = 0;
+static i64 punp_win32_perf_counter_frequency;
 
 //
 // Input
@@ -848,7 +849,7 @@ win32_window_callback(HWND window, UINT message, WPARAM wp, LPARAM lp)
             if (wp < KEYS_MAX) {
                 CORE->key_states[wp] = 1;
                 CORE->key_deltas[wp] = 1;
-                printf("key pressed: %d\n", wp);
+                // printf("key pressed: %d\n", wp);
             }
             return 0;
         }
@@ -859,7 +860,7 @@ win32_window_callback(HWND window, UINT message, WPARAM wp, LPARAM lp)
             if (wp < KEYS_MAX) {
                 CORE->key_states[wp] = 0;
                 CORE->key_deltas[wp] = 1;
-                printf("key released: %d\n", wp);
+                // printf("key released: %d\n", wp);
             }
             return 0;
         }
@@ -880,7 +881,7 @@ perf_get()
 {
     i64 counter;
     QueryPerformanceCounter((LARGE_INTEGER *)&counter);
-	return (f64)((f64)counter / (f64)_win32_perf_counter_frequency); // *(1e3);
+	return (f64)((f64)counter / (f64)punp_win32_perf_counter_frequency); // *(1e3);
 }
 
 void *
@@ -904,13 +905,13 @@ resource_get(const char *name, size_t *size)
         return 0;
     }
 
-    DWORD _size = SizeofResource(0, handle);
-    if (!_size) {
+    DWORD t_size = SizeofResource(0, handle);
+    if (!t_size) {
         printf("SizeofResource failed.");
         return 0;
     }
 
-    *size = _size;
+    *size = t_size;
     return ptr;
 }
 
@@ -918,10 +919,10 @@ resource_get(const char *name, size_t *size)
 // Sound
 //
 
-static LPDIRECTSOUND8 _win32_direct_sound = 0;
-static LPDIRECTSOUNDBUFFER _win32_audio_buffer = 0;
-static WAVEFORMATEX _win32_audio_format = {0};
-static DSBUFFERDESC _win32_audio_buffer_description = {0};
+static LPDIRECTSOUND8 punp_win32_direct_sound = 0;
+static LPDIRECTSOUNDBUFFER punp_win32_audio_buffer = 0;
+static WAVEFORMATEX punp_win32_audio_format = {0};
+static DSBUFFERDESC punp_win32_audio_buffer_description = {0};
 
 typedef HRESULT(WINAPI*DirectSoundCreate8F)(LPGUID,LPDIRECTSOUND8*,LPUNKNOWN);
 //#define DIRECT_SOUND_CREATE(name) \
@@ -929,7 +930,7 @@ typedef HRESULT(WINAPI*DirectSoundCreate8F)(LPGUID,LPDIRECTSOUND8*,LPUNKNOWN);
 //typedef DIRECT_SOUND_CREATE(DirectSoundCreateF);
 
 static bool
-_win32_sound_init()
+punp_win32_sound_init()
 {
     HRESULT hr;
 
@@ -946,15 +947,15 @@ _win32_sound_init()
         return 0;
     }
 
-	hr = DirectSoundCreate8(0, &_win32_direct_sound, 0);
+	hr = DirectSoundCreate8(0, &punp_win32_direct_sound, 0);
     if (hr != DS_OK) {
         printf("DirectSoundCreate failed.\n");
         return 0;
     }
 
-    hr = IDirectSound8_SetCooperativeLevel(_win32_direct_sound, _win32_window, DSSCL_PRIORITY);
+    hr = IDirectSound8_SetCooperativeLevel(punp_win32_direct_sound, punp_win32_window, DSSCL_PRIORITY);
     if (hr != DS_OK) {
-        printf("_win32_direct_sound->SetCooperativeLevel failed.\n");
+        printf("punp_win32_direct_sound->SetCooperativeLevel failed.\n");
         return 0;
     }
 
@@ -963,21 +964,21 @@ _win32_sound_init()
     primary_buffer_description.dwFlags = DSBCAPS_PRIMARYBUFFER;
 
     LPDIRECTSOUNDBUFFER primary_buffer;
-    hr = IDirectSound8_CreateSoundBuffer(_win32_direct_sound, &primary_buffer_description, &primary_buffer, 0);
+    hr = IDirectSound8_CreateSoundBuffer(punp_win32_direct_sound, &primary_buffer_description, &primary_buffer, 0);
     if (hr != DS_OK) {
-        printf("_win32_direct_sound->CreateSoundBuffer for primary buffer failed.\n");
+        printf("punp_win32_direct_sound->CreateSoundBuffer for primary buffer failed.\n");
         return 0;
     }
 
-    _win32_audio_format.wFormatTag = WAVE_FORMAT_PCM;
-    _win32_audio_format.nChannels = _SOUND_CHANNELS;
-    _win32_audio_format.nSamplesPerSec = SOUND_SAMPLE_RATE;
-    _win32_audio_format.wBitsPerSample = 16;
-    _win32_audio_format.nBlockAlign = (_win32_audio_format.nChannels * _win32_audio_format.wBitsPerSample) / 8;
-    _win32_audio_format.nAvgBytesPerSec = _win32_audio_format.nSamplesPerSec * _win32_audio_format.nBlockAlign;
-    _win32_audio_format.cbSize = 0;
+    punp_win32_audio_format.wFormatTag = WAVE_FORMAT_PCM;
+    punp_win32_audio_format.nChannels = PUNP_SOUND_CHANNELS;
+    punp_win32_audio_format.nSamplesPerSec = SOUND_SAMPLE_RATE;
+    punp_win32_audio_format.wBitsPerSample = 16;
+    punp_win32_audio_format.nBlockAlign = (punp_win32_audio_format.nChannels * punp_win32_audio_format.wBitsPerSample) / 8;
+    punp_win32_audio_format.nAvgBytesPerSec = punp_win32_audio_format.nSamplesPerSec * punp_win32_audio_format.nBlockAlign;
+    punp_win32_audio_format.cbSize = 0;
 
-    hr = IDirectSoundBuffer8_SetFormat(primary_buffer, &_win32_audio_format);
+    hr = IDirectSoundBuffer8_SetFormat(primary_buffer, &punp_win32_audio_format);
     if (hr != DS_OK) {
         printf("primary_buffer->SetFormat failed.");
         return 0;
@@ -985,10 +986,10 @@ _win32_sound_init()
 
 	// DSBSIZE_MIN DSBSIZE_MAX
 
-    _win32_audio_buffer_description.dwSize = sizeof(_win32_audio_buffer_description);
+    punp_win32_audio_buffer_description.dwSize = sizeof(punp_win32_audio_buffer_description);
     // 2 seconds.
-    _win32_audio_buffer_description.dwBufferBytes = _SOUND_BUFFER_BYTES;
-    _win32_audio_buffer_description.lpwfxFormat = &_win32_audio_format;
+    punp_win32_audio_buffer_description.dwBufferBytes = PUNP_SOUND_BUFFER_BYTES;
+    punp_win32_audio_buffer_description.lpwfxFormat = &punp_win32_audio_format;
 	// dicates that IDirectSoundBuffer::GetCurrentPosition should use the new behavior of the play cursor.
 	// In DirectSound in DirectX 1, the play cursor was significantly ahead of the actual playing sound on
 	// emulated sound cards; it was directly behind the write cursor.
@@ -996,27 +997,27 @@ _win32_sound_init()
 	// play position. If this flag is not specified, the old behavior is preserved for compatibility.
 	// Note that this flag affects only emulated sound cards; if a DirectSound driver is present, the play
 	// cursor is accurate for DirectSound in all versions of DirectX.
-	_win32_audio_buffer_description.dwFlags = DSBCAPS_GETCURRENTPOSITION2;
+	punp_win32_audio_buffer_description.dwFlags = DSBCAPS_GETCURRENTPOSITION2;
 	
-	hr = IDirectSound8_CreateSoundBuffer(_win32_direct_sound,
-                                         &_win32_audio_buffer_description,
-                                         &_win32_audio_buffer,
+	hr = IDirectSound8_CreateSoundBuffer(punp_win32_direct_sound,
+                                         &punp_win32_audio_buffer_description,
+                                         &punp_win32_audio_buffer,
                                          0);
     if (hr != DS_OK)
     {
-        printf("_win32_direct_sound->CreateSoundBuffer for secondary buffer failed.\n");
+        printf("punp_win32_direct_sound->CreateSoundBuffer for secondary buffer failed.\n");
         return 0;
     }
 
-    // IDirectSoundBuffer8_SetFormat(_win32_audio_buffer, &_win32_audio_format);
+    // IDirectSoundBuffer8_SetFormat(punp_win32_audio_buffer, &punp_win32_audio_format);
 
     // Clear the initial buffer.
 
     LPVOID region1, region2;
     DWORD region1_size, region2_size;
 
-    hr = IDirectSoundBuffer8_Lock(_win32_audio_buffer,
-                                  0, _win32_audio_buffer_description.dwBufferBytes,
+    hr = IDirectSoundBuffer8_Lock(punp_win32_audio_buffer,
+                                  0, punp_win32_audio_buffer_description.dwBufferBytes,
                                   (LPVOID *)&region1, &region1_size,
                                   (LPVOID *)&region2, &region2_size,
                                   DSBLOCK_ENTIREBUFFER);
@@ -1024,12 +1025,12 @@ _win32_sound_init()
     if (hr == DS_OK)
     {
         memset(region1, 0, region1_size);
-        IDirectSoundBuffer8_Unlock(_win32_audio_buffer,
+        IDirectSoundBuffer8_Unlock(punp_win32_audio_buffer,
                                    region1, region1_size,
                                    region2, region2_size);
     }
 
-    hr = IDirectSoundBuffer8_Play(_win32_audio_buffer, 0, 0, DSBPLAY_LOOPING);
+    hr = IDirectSoundBuffer8_Play(punp_win32_audio_buffer, 0, 0, DSBPLAY_LOOPING);
 
 	if (hr != DS_OK)
 	{
@@ -1038,19 +1039,19 @@ _win32_sound_init()
     return 1;
 }
 
-static DWORD _win32_audio_cursor = 0;
+static DWORD punp_win32_audio_cursor = 0;
 
 static void
-_win32_sound_step()
+punp_win32_sound_step()
 {
-//	if (!_audio_source_playback) {
+//	if (!punp_audio_source_playback) {
 //		return;
 //	}
 
     HRESULT hr;
 
     DWORD cursor_play, cursor_write;
-    hr = IDirectSoundBuffer8_GetCurrentPosition(_win32_audio_buffer,
+    hr = IDirectSoundBuffer8_GetCurrentPosition(punp_win32_audio_buffer,
                                                 &cursor_play, &cursor_write);
 
     if (FAILED(hr)) {
@@ -1058,20 +1059,20 @@ _win32_sound_step()
         return;
     }
 
-    u32 chunk_size = _SOUND_SAMPLES_TO_BYTES(_SOUND_BUFFER_CHUNK_SAMPLES);
+    u32 chunk_size = PUNP_SOUND_SAMPLES_TO_BYTES(PUNP_SOUND_BUFFER_CHUNK_SAMPLES);
     u32 chunk = cursor_write / chunk_size;
 
-    DWORD lock_cursor = ((chunk+1) * chunk_size) % _SOUND_BUFFER_BYTES;
+    DWORD lock_cursor = ((chunk+1) * chunk_size) % PUNP_SOUND_BUFFER_BYTES;
     DWORD lock_size = chunk_size;
 
-    if (lock_cursor == _win32_audio_cursor) {
+    if (lock_cursor == punp_win32_audio_cursor) {
 		// printf("Audio frame skip.\n");
 	    return;
 	}
 
     VOID *range1, *range2;
     DWORD range1_size, range2_size;
-    hr = IDirectSoundBuffer8_Lock(_win32_audio_buffer,
+    hr = IDirectSoundBuffer8_Lock(punp_win32_audio_buffer,
                                   lock_cursor,
                                   lock_size,
                                   &range1, &range1_size,
@@ -1082,20 +1083,20 @@ _win32_sound_step()
         return;
     }
 
-    _sound_mix(range1, _SOUND_BYTES_TO_SAMPLES(range1_size));
+    punp_sound_mix(range1, PUNP_SOUND_BYTES_TO_SAMPLES(range1_size));
     if (range2) {
-        _sound_mix(range2, _SOUND_BYTES_TO_SAMPLES(range2_size));
+        punp_sound_mix(range2, PUNP_SOUND_BYTES_TO_SAMPLES(range2_size));
     }
 
-    IDirectSoundBuffer8_Unlock(_win32_audio_buffer,
+    IDirectSoundBuffer8_Unlock(punp_win32_audio_buffer,
                                range1, range1_size,
                                range2, range2_size);
 
-    _win32_audio_cursor = lock_cursor;
+    punp_win32_audio_cursor = lock_cursor;
 
 //	static playing = 0;
 //	if (playing == 0) {
-//		IDirectSoundBuffer8_Play(_win32_audio_buffer, 0, 0, DSBPLAY_LOOPING);
+//		IDirectSoundBuffer8_Play(punp_win32_audio_buffer, 0, 0, DSBPLAY_LOOPING);
 //		playing = 1;
 //	}
 }
@@ -1112,21 +1113,21 @@ WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR command_line, int sho
         return 1;
     }
 
-    static Bank _stack = {0};
-    static Bank _storage = {0};
-    static Core _core = {0};
+    static Bank s_stack = {0};
+    static Bank s_storage = {0};
+    static Core s_core = {0};
 
-    CORE = &_core;
+    CORE = &s_core;
     CORE->running = 1;
-    CORE->stack = &_stack;
-    CORE->storage = &_storage;
+    CORE->stack = &s_stack;
+    CORE->storage = &s_storage;
 
     bank_init(CORE->stack, STACK_CAPACITY);
     bank_init(CORE->storage, STORAGE_CAPACITY);
 
     // TODO: Push canvas to storage? Storage is not initialized yet, so we cannot push it there.
-    static Bitmap _canvas = {0};
-    CORE->canvas = &_canvas;
+    static Bitmap s_canvas = {0};
+    CORE->canvas = &s_canvas;
     bitmap_init(CORE->canvas, CANVAS_WIDTH, CANVAS_HEIGHT, 0, 0);
     bitmap_clear(CORE->canvas, COLOR_TRANSPARENT);
 
@@ -1136,8 +1137,8 @@ WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR command_line, int sho
     //
     //
 
-    _win32_instance = instance;
-    QueryPerformanceFrequency((LARGE_INTEGER *)&_win32_perf_counter_frequency);
+    punp_win32_instance = instance;
+    QueryPerformanceFrequency((LARGE_INTEGER *)&punp_win32_perf_counter_frequency);
 
     UINT desired_sleep_ms = 1;
     bool sleep_is_granular = (timeBeginPeriod(desired_sleep_ms) == TIMERR_NOERROR);
@@ -1155,7 +1156,7 @@ WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR command_line, int sho
     WNDCLASSA window_class = {0};
     window_class.style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC;
     window_class.lpfnWndProc = win32_window_callback;
-    window_class.hInstance = _win32_instance;
+    window_class.hInstance = punp_win32_instance;
     // window_class.hIcon = (HICON)LoadImage(0, "icon.ico", IMAGE_ICON, 0, 0, LR_LOADFROMFILE | LR_DEFAULTSIZE | LR_SHARED);
     window_class.hIcon = (HICON)LoadIcon(instance, "icon.ico");
     window_class.hCursor = LoadCursor(0, IDC_ARROW);
@@ -1172,10 +1173,10 @@ WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR command_line, int sho
 
 
     RECT rc;
-    rc.left = (screen_width - (_WINDOW_WIDTH)) / 2;
-    rc.top = (screen_height - (_WINDOW_HEIGHT)) / 2;
-    rc.right = rc.left + _WINDOW_WIDTH;
-    rc.bottom = rc.top + _WINDOW_HEIGHT;
+    rc.left = (screen_width - (PUNP_WINDOW_WIDTH)) / 2;
+    rc.top = (screen_height - (PUNP_WINDOW_HEIGHT)) / 2;
+    rc.right = rc.left + PUNP_WINDOW_WIDTH;
+    rc.bottom = rc.top + PUNP_WINDOW_HEIGHT;
 
 
     DWORD style = WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX;
@@ -1186,7 +1187,7 @@ WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR command_line, int sho
     // rc.left = (screen_width  - width) / 2;
     // rc.top  = (screen_height - height) / 2;
 
-    _win32_window = CreateWindowExA(
+    punp_win32_window = CreateWindowExA(
             0,
             window_class.lpszClassName,
             WINDOW_TITLE,
@@ -1194,10 +1195,10 @@ WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR command_line, int sho
             rc.left, rc.top,
             rc.right - rc.left, rc.bottom - rc.top,
             0, 0,
-            _win32_instance,
+            punp_win32_instance,
             0);
 
-    if (!_win32_window) {
+    if (!punp_win32_window) {
         printf("CreateWindowExA failed.\n");
         return 1;
     }
@@ -1220,8 +1221,8 @@ WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR command_line, int sho
 
 	// Sound
 
-	if (_win32_sound_init() == 0) {
-		_win32_audio_buffer = 0;
+	if (punp_win32_sound_init() == 0) {
+		punp_win32_audio_buffer = 0;
 	}
 
 
@@ -1229,7 +1230,7 @@ WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR command_line, int sho
 
 
     // TODO: Center window
-    ShowWindow(_win32_window, SW_SHOW);
+    ShowWindow(punp_win32_window, SW_SHOW);
 
     f64 frame_time_stamp, frame_time_now, frame_time_delta;
     int x, y;
@@ -1258,8 +1259,8 @@ WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR command_line, int sho
         perf_to(&CORE->perf_step);
 
 		perf_from(&CORE->perf_audio);
-		if (_win32_audio_buffer) {
-			_win32_sound_step();
+		if (punp_win32_audio_buffer) {
+			punp_win32_sound_step();
 		}
 		perf_to(&CORE->perf_audio);
 
@@ -1275,7 +1276,7 @@ WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR command_line, int sho
 		perf_to(&CORE->perf_blit_cvt);
 
 		perf_from(&CORE->perf_blit_gdi);
-		HDC dc = GetDC(_win32_window);
+		HDC dc = GetDC(punp_win32_window);
 #if 1
 		// TODO: This is sadly slow (50us on my machine), need to find a faster way to do this.
 		StretchDIBits(dc,
@@ -1287,16 +1288,16 @@ WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR command_line, int sho
                       SRCCOPY);
 #else
 #endif
-		ReleaseDC(_win32_window, dc);
+		ReleaseDC(punp_win32_window, dc);
 		perf_to(&CORE->perf_blit_gdi);
         perf_to(&CORE->perf_blit);
 
 		perf_to(&CORE->perf_frame_inner);
 
         f32 frame_delta = perf_delta(&CORE->perf_frame);
-        if (frame_delta < _FRAME_TIME) {
-			// printf("sleeping ... %.3f\n", (f32)_FRAME_TIME - frame_delta);
-            Sleep((_FRAME_TIME - frame_delta) * 1e3);
+        if (frame_delta < PUNP_FRAME_TIME) {
+			// printf("sleeping ... %.3f\n", (f32)PUNP_FRAME_TIME - frame_delta);
+            Sleep((PUNP_FRAME_TIME - frame_delta) * 1e3);
         }
         CORE->frame++;
 
