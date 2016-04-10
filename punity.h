@@ -276,13 +276,13 @@ bool clip_check();
 // This is useful if you want to lighten or darken the colors.
 // `ramp` is u8[256] array of indexes starting at darkest color as 1.
 // Index of 0 means the color is not being shifted.
-void palette_shift(Palette *A, Palette *B, u8 *ramp, i32 amount);
+// TODO: void palette_shift(Palette *A, Palette *B, u8 *ramp, i32 amount);
 
 
 // Draws a filled rectangle to the canvas.
 void rect_draw(Rect rect, u8 color);
 // Draws a frame of a rectangle to the canvas.
-void frame_draw(Rect rect, u8 color);
+// TODO: void frame_draw(Rect rect, u8 color);
 
 enum {
     DrawFlags_FlipH = 0x01,
@@ -415,6 +415,14 @@ void step();
 //
 // Keys
 //
+
+// Returns true if key held down.
+//
+#define key_down(key) (CORE->key_states[key])
+
+// Returns true if key started to be held down in this frame.
+//
+#define key_pressed(key) (CORE->key_deltas[key] && key_down(key))
 
 #define KEY_MOD_SHIFT           0x0001
 #define KEY_MOD_CONTROL         0x0002

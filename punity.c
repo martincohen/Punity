@@ -423,7 +423,10 @@ bitmap_init(Bitmap *bitmap, i32 width, i32 height, void *pixels, int bpp)
                     goto next;
                 }
 
-                pixel = *pixels_it;
+				pixel = *pixels_it;
+				// TODO: This is just for Windows, need to be done a bit better.
+				pixel.b = pixels_it->r;
+				pixel.r = pixels_it->b;
                 pixel.a = 0xFF;
                 for (ix = 1; ix < palette->colors_count; ix++) {
                     if (palette->colors[ix].rgba == pixel.rgba)
@@ -435,7 +438,7 @@ bitmap_init(Bitmap *bitmap, i32 width, i32 height, void *pixels, int bpp)
                 ASSERT(palette->colors_count != 0xFF);
                 if (palette->colors_count != 0xFF) {
                     ix = palette->colors_count;
-                    palette->colors[ix] = *pixels_it;
+                    palette->colors[ix] = pixel;
                     palette->colors_count++;
                     // printf("[palette] + #%0.2x %0.2x%0.2x%0.2x%0.2x\n",
                     //        ix, pixel.r, pixel.g, pixel.b, pixel.a);

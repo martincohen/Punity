@@ -1,5 +1,6 @@
 bin
 .idea
 .vs
+main.aps
 CMakeLists.txt
 NOTES.md
