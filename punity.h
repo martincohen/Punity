@@ -6,6 +6,8 @@
  */ 
 
 /**
+ * Version 1.3
+ * - Fixed RGB in bitmap loader on Windows.
  * Version 1.2
  * - Replaced usage of `_` prefixes with `PUNP_` prefixes to not violate reserved identifiers.
  * Version 1.1
