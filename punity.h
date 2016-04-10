@@ -5,6 +5,15 @@
  * under the terms of the MIT license. See LICENSE for details.
  */ 
 
+/**
+ * Version 1.1
+ * - Fixed timing issues and frame counting.
+ * - Fixed KEY_* constants being not correct for Windows platform.
+ * - Added draw_rect().
+ * Version 1.0
+ * - Initial release
+ */
+
 #ifndef PUNITY_H
 #define PUNITY_H
 

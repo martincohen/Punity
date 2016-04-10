@@ -38,7 +38,7 @@ There is another project I'm working on called **Blander** which is also quite s
 
 **Note that the project is still in development.** More documentation, features, examples and fixes is underway.
 
-- **More drawing functions** very soon (`draw_rect()`, `draw_frame()`).
+- **More drawing functions** very soon (`draw_frame()`).
 - **Even more drawing functions** a bit later (`draw_line()`, `draw_circle()`, etc.).
 - **Tile maps** (with support of loading simple Tiled format and with customizable Tile elements).
 - **Draw lists** to be able to push drawing operations in arbitrary order, but to get them sorted by *z* coordinate before rendering.
@@ -193,8 +193,10 @@ You can run `devenv bin\main.exe` in case you're running from *Visual Studio Com
 
 A list of tasks I keep with important changes planned to appear in upcoming releases.
 
-- Versioning scheme.
-- Clean up or even remove KEY_* constants?
+- `draw_frame()`
+- `draw_circle()`
+- `draw_line()`
+- Palette rotations, shifting, etc.
 
 # Outstanding (involuntary) contributions
 
