@@ -6,6 +6,8 @@
  */ 
 
 /**
+ * Version 1.2
+ * - Replaced usage of `_` prefixes with `PUNP_` prefixes to not violate reserved identifiers.
  * Version 1.1
  * - Fixed timing issues and frame counting.
  * - Fixed KEY_* constants being not correct for Windows platform.
