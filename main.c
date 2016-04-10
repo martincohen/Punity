@@ -4,6 +4,9 @@ static Font font;
 static Sound sound1;
 static Sound sound2;
 
+#define COLOR_BLACK (1)
+#define COLOR_WHITE (2)
+
 void
 init()
 {
@@ -33,13 +36,35 @@ step()
 		sound_play(&sound2);
 	}
 
+	if (CORE->key_states[KEY_RIGHT]) {
+		CORE->translate_x++;
+	}
+
+	if (CORE->key_states[KEY_LEFT]) {
+		CORE->translate_x--;
+	}
+
+	if (CORE->key_states[KEY_DOWN]) {
+		CORE->translate_y++;
+	}
+
+	if (CORE->key_states[KEY_UP]) {
+		CORE->translate_y--;
+	}
+
+	if (CORE->key_states[KEY_ESCAPE]) {
+		CORE->running = 0;
+	}
+
     canvas_clear(0);
     // Rect r = rect_make_size(0, 0, 16, 16);
     // bitmap_draw(0, 0, 0, 0, &splash, &r, 0, 0);
 
     text_draw(0, 0, "\n\nHELLO\nWORLD", 3);
 
+    rect_draw(rect_make_size(32, 32, 8, 8), 2);
+
     static char buf[256];
-    sprintf(buf, "%03d", (i32)(CORE->perf_audio.delta * 1000.0f));
+    sprintf(buf, "%03f %05d", CORE->perf_blit_gdi.delta, (i32)CORE->frame);
     text_draw(0, 0, buf, 2);
 }

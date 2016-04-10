@@ -63,37 +63,6 @@ panic(const char *message, const char *description, const char *function, const 
     // *(int *)0 = 0;
 }
 
-//
-//
-//
-
-Color
-color_make(u8 r, u8 g, u8 b, u8 a)
-{
-    Color c = {{COLOR_CHANNELS}};
-    return c;
-}
-
-extern inline Rect
-rect_make(i32 min_x, i32 min_y, i32 max_x, i32 max_y)
-{
-    Rect v;
-    v.min_x = min_x;
-    v.min_y = min_y;
-    v.max_x = max_x;
-    v.max_y = max_y;
-    return v;
-}
-
-extern inline Rect
-rect_make_size(i32 x, i32 y, i32 w, i32 h)
-{
-    Rect v = rect_make(x,
-                       y,
-                       x + w,
-                       y + h);
-    return v;
-}
 
 //
 // Utility
@@ -116,7 +85,8 @@ perf_to(PerfSpan *span)
 f32
 perf_delta(const PerfSpan *span)
 {
-    return perf_get() - span->stamp;
+	f64 now = perf_get();
+	return maximum(0.0f, (f32)(now - span->stamp));
 }
 
 //
@@ -272,6 +242,158 @@ bank_end(BankState *state)
 }
 
 //
+// Graphics types
+//
+
+Color
+color_make(u8 r, u8 g, u8 b, u8 a)
+{
+    Color c = {{COLOR_CHANNELS}};
+    return c;
+}
+
+extern inline Rect
+rect_make(i32 min_x, i32 min_y, i32 max_x, i32 max_y)
+{
+    Rect v;
+    v.min_x = min_x;
+    v.min_y = min_y;
+    v.max_x = max_x;
+    v.max_y = max_y;
+    return v;
+}
+
+extern inline Rect
+rect_make_size(i32 x, i32 y, i32 w, i32 h)
+{
+    Rect v = rect_make(x,
+                       y,
+                       x + w,
+                       y + h);
+    return v;
+}
+
+bool
+rect_check_limits(Rect *rect, i32 min_x, i32 min_y, i32 max_x, i32 max_y)
+{
+    return (rect->min_x >= min_x) && (rect->min_y >= min_y) &&
+           (rect->max_x <= max_x) && (rect->max_y <= max_y) &&
+           (rect->min_x <= rect->max_x) &&
+           (rect->min_y <= rect->max_y);
+}
+
+//
+// Canvas
+//
+
+void
+rect_intersect(Rect *R, Rect *C)
+{
+    R->min_x = minimum(C->max_x, maximum(R->min_x, C->min_x));
+    R->min_y = minimum(C->max_y, maximum(R->min_y, C->min_y));
+    R->max_x = maximum(C->min_x, minimum(R->max_x, C->max_x));
+    R->max_y = maximum(C->min_y, minimum(R->max_y, C->max_y));
+}
+
+// Returns 0 if R does not intersect with C (is fully invisible).
+// Returns 1 if R has NOT been clipped (is fully visible).
+// Returns 2 if R has been clipped.
+i32
+clip_rect_with_offsets(Rect *R, Rect *C, i32 *ox, i32 *oy)
+{
+    if (R->max_x < C->min_x || R->min_x >= C->max_x ||
+        R->max_y < C->min_y || R->min_y >= C->max_y) {
+        return 0;
+    }
+
+    i32 res = 1;
+
+    if (R->min_x < C->min_x) {
+        *ox = C->min_x - R->min_x;
+        R->min_x = C->min_x;
+        res = 2;
+    } else if (R->max_x > C->max_x) {
+        R->max_x = C->max_x;
+        res = 2;
+    }
+
+    if (R->min_y < C->min_y) {
+        *oy = C->min_y - R->min_y;
+        R->min_y = C->min_y;
+        res = 2;
+    } else if (R->max_y > C->max_y) {
+        R->max_y = C->max_y;
+        res = 2;
+    }
+
+    return res;
+}
+
+void
+clip_set(Rect rect)
+{
+    Rect canvas_rect = rect_make_size(0, 0, CORE->canvas->width, CORE->canvas->height);
+    rect_intersect(&rect, &canvas_rect);
+    CORE->clip = rect;
+}
+
+void
+clip_reset()
+{
+    CORE->clip = rect_make_size(0, 0, CORE->canvas->width, CORE->canvas->height);
+}
+
+bool
+clip_check()
+{
+    return (CORE->clip.min_x >= 0) &&
+           (CORE->clip.min_y >= 0) &&
+           (CORE->clip.max_x <= CORE->canvas->width) &&
+           (CORE->clip.max_y <= CORE->canvas->height) &&
+           (CORE->clip.min_x <= CORE->clip.max_x) &&
+           (CORE->clip.min_y <= CORE->clip.max_y);
+}
+
+void
+shift_colors(Bitmap *bitmap)
+{
+
+}
+
+void
+canvas_clear(u8 color)
+{
+    // TODO: This should clear only within the clip, so
+    //       essentially we're drawing a rectangle here.
+    memset(CORE->canvas->pixels, color, CORE->canvas->width * CORE->canvas->height);
+}
+
+void
+rect_draw(Rect r, u8 color)
+{
+    rect_tr(&r, CORE->translate_x, CORE->translate_y);
+    rect_intersect(&r, &CORE->clip);
+    if (r.max_x > r.min_x && r.max_y > r.min_y)
+    {
+        u32 canvas_pitch = CORE->canvas->width;
+        u8 *row = CORE->canvas->pixels + r.min_x + (r.min_y * canvas_pitch);
+        i32 w = r.max_x - r.min_x;
+        while (r.max_y != r.min_y)
+        {
+            memset(row, color, w);
+            row += canvas_pitch;
+            r.max_y--;
+        }
+    }
+}
+
+void
+frame_draw(Rect r, u8 color)
+{
+
+}
+
+//
 // Bitmap
 //
 
@@ -370,104 +492,6 @@ bitmap_load_resource(Bitmap *bitmap, const char *resource_name)
 
 #endif
 
-//
-// Canvas
-//
-
-void
-intersect_rect(Rect *R, Rect *C)
-{
-    R->min_x = minimum(C->max_x, maximum(R->min_x, C->min_x));
-    R->min_y = minimum(C->max_y, maximum(R->min_y, C->min_y));
-    R->max_x = maximum(C->min_x, minimum(R->max_x, C->max_x));
-    R->max_y = maximum(C->min_y, minimum(R->max_y, C->max_y));
-}
-
-// Returns 0 if R does not intersect with C (is fully invisible).
-// Returns 1 if R has NOT been clipped (is fully visible).
-// Returns 2 if R has been clipped.
-i32
-clip_rect_with_offsets(Rect *R, Rect *C, i32 *ox, i32 *oy)
-{
-    if (R->max_x < C->min_x || R->min_x >= C->max_x ||
-        R->max_y < C->min_y || R->min_y >= C->max_y) {
-        return 0;
-    }
-
-    i32 res = 1;
-
-    if (R->min_x < C->min_x) {
-        *ox = C->min_x - R->min_x;
-        R->min_x = C->min_x;
-        res = 2;
-    } else if (R->max_x > C->max_x) {
-        R->max_x = C->max_x;
-        res = 2;
-    }
-
-    if (R->min_y < C->min_y) {
-        *oy = C->min_y - R->min_y;
-        R->min_y = C->min_y;
-        res = 2;
-    } else if (R->max_y > C->max_y) {
-        R->max_y = C->max_y;
-        res = 2;
-    }
-
-    return res;
-}
-
-void
-clip_set(Rect rect)
-{
-    Rect canvas_rect = rect_make_size(0, 0, CORE->canvas->width, CORE->canvas->height);
-    intersect_rect(&rect, &canvas_rect);
-    CORE->clip = rect;
-}
-
-void
-clip_reset()
-{
-    CORE->clip = rect_make_size(0, 0, CORE->canvas->width, CORE->canvas->height);
-}
-
-bool
-clip_check()
-{
-    return (CORE->clip.min_x >= 0) &&
-           (CORE->clip.min_y >= 0) &&
-           (CORE->clip.max_x <= CORE->canvas->width) &&
-           (CORE->clip.max_y <= CORE->canvas->height) &&
-           (CORE->clip.min_x <= CORE->clip.max_x) &&
-           (CORE->clip.min_y <= CORE->clip.max_y);
-}
-
-void
-shift_colors(Bitmap *bitmap)
-{
-
-}
-
-void
-canvas_clear(u8 color)
-{
-    // TODO: This should clear only within the clip, so
-    //       essentially we're drawing a rectangle here.
-    memset(CORE->canvas->pixels, color, CORE->canvas->width * CORE->canvas->height);
-}
-
-void
-rect_draw(Rect *rect, u8 color)
-{
-
-}
-
-void
-frame_draw(Rect *rect, u8 color)
-{
-
-}
-
 #define _BLIT(color, source_increment) \
     for (_y = 0; _y != h; ++_y) { \
         for (_x = 0; _x != w; ++_x) { \
@@ -488,15 +512,7 @@ bitmap_draw(i32 x, i32 y, i32 pivot_x, i32 pivot_y, Bitmap *bitmap, Rect *bitmap
 
     Rect _bitmap_rect;
     if (bitmap_rect) {
-        // Bitmap rectangle must be within the boundaries of the bitmap.
-        ASSERT(bitmap_rect->min_x >= 0);
-        ASSERT(bitmap_rect->min_y >= 0);
-        ASSERT(bitmap_rect->max_x <= bitmap->width);
-        ASSERT(bitmap_rect->max_y <= bitmap->height);
-        // Bitmap rectangle must be valid.
-        ASSERT(bitmap_rect->min_x <= bitmap_rect->max_x);
-        ASSERT(bitmap_rect->min_y <= bitmap_rect->max_y);
-
+        ASSERT(rect_check_limits(bitmap_rect, 0, 0, bitmap->width, bitmap->height));
         _bitmap_rect = *bitmap_rect;
     } else {
         _bitmap_rect = rect_make_size(0, 0, bitmap->width, bitmap->height);
@@ -864,7 +880,7 @@ perf_get()
 {
     i64 counter;
     QueryPerformanceCounter((LARGE_INTEGER *)&counter);
-    return (f64)((f64)counter / (f64)_win32_perf_counter_frequency) * (1e3);
+	return (f64)((f64)counter / (f64)_win32_perf_counter_frequency); // *(1e3);
 }
 
 void *
@@ -1248,6 +1264,7 @@ WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR command_line, int sho
 		perf_to(&CORE->perf_audio);
 
         perf_from(&CORE->perf_blit);
+		perf_from(&CORE->perf_blit_cvt);
         canvas_it = CORE->canvas->pixels;
         for (y = CANVAS_HEIGHT; y != 0; --y) {
             window_row = window_buffer + ((y - 1) * CANVAS_WIDTH);
@@ -1255,24 +1272,31 @@ WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR command_line, int sho
                 *(window_row++) = CORE->palette.colors[*canvas_it++].rgba;
             }
         }
+		perf_to(&CORE->perf_blit_cvt);
 
-        HDC dc = GetDC(_win32_window);
-        StretchDIBits(dc,
+		perf_from(&CORE->perf_blit_gdi);
+		HDC dc = GetDC(_win32_window);
+#if 1
+		// TODO: This is sadly slow (50us on my machine), need to find a faster way to do this.
+		StretchDIBits(dc,
                       0, 0, CANVAS_WIDTH * CANVAS_SCALE, CANVAS_HEIGHT * CANVAS_SCALE,
                       0, 0, CANVAS_WIDTH, CANVAS_HEIGHT,
                       window_buffer,
                       &window_bmi,
                       DIB_RGB_COLORS,
                       SRCCOPY);
-
-        ReleaseDC(_win32_window, dc);
+#else
+#endif
+		ReleaseDC(_win32_window, dc);
+		perf_to(&CORE->perf_blit_gdi);
         perf_to(&CORE->perf_blit);
 
 		perf_to(&CORE->perf_frame_inner);
 
         f32 frame_delta = perf_delta(&CORE->perf_frame);
         if (frame_delta < _FRAME_TIME) {
-            Sleep((f32)_FRAME_TIME - frame_delta);
+			// printf("sleeping ... %.3f\n", (f32)_FRAME_TIME - frame_delta);
+            Sleep((_FRAME_TIME - frame_delta) * 1e3);
         }
         CORE->frame++;
 
