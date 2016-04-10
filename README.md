@@ -41,6 +41,7 @@ There is another project I'm working on called **Blander** which is also quite s
 - **More drawing functions** very soon (`draw_frame()`).
 - **Even more drawing functions** a bit later (`draw_line()`, `draw_circle()`, etc.).
 - **Tile maps** (with support of loading simple Tiled format and with customizable Tile elements).
+- **GIF recorder** to record the screen to animated gifs. Optional, because it brings a dependency on rxi's modified version of [`jo_gif.c`](http://www.jonolick.com/home/gif-writer).
 - **Draw lists** to be able to push drawing operations in arbitrary order, but to get them sorted by *z* coordinate before rendering.
 - **Live asset reloading** in *debug* mode while keeping the same possibility of baking assets to executable as it has now in *release* mode.
 - **SDL platform layer** in an optional separate file `punity_sdl.c` with additional pre-made build scripts (Windows, Linux, Mac OS X, iOS, Android, Raspberry Pi, [Dingux](http://wiki.dingoonity.org/index.php?title=Dingux:About), etc.). This would introduce a dependency on SDL2, though.
@@ -197,6 +198,8 @@ A list of tasks I keep with important changes planned to appear in upcoming rele
 - `draw_circle()`
 - `draw_line()`
 - Palette rotations, shifting, etc.
+- Experiment with a reasonable replacement of `StretchDIBits` to gain more performance.
+- Animated GIF recording. Will need to solve the previous issues with it being too slow. Probably first record the frames to memory, then process the gif in a separate thread.
 
 # Outstanding (involuntary) contributions
 
