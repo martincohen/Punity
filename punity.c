@@ -26,12 +26,18 @@
 #undef C
 #endif
 
+//#define PUNP_SOUND_DEFAULT_SOUND_VOLUME 0.8f
+//#define PUNP_SOUND_DEFAULT_MASTER_VOLUME 0.8f
+
+#define PUNP_SOUND_DEFAULT_SOUND_VOLUME 0.9f
+#define PUNP_SOUND_DEFAULT_MASTER_VOLUME 0.9f
+
 #define PUNP_WINDOW_WIDTH  (CANVAS_WIDTH  * CANVAS_SCALE)
 #define PUNP_WINDOW_HEIGHT (CANVAS_HEIGHT * CANVAS_SCALE)
 #define PUNP_FRAME_TIME    (1.0/30.0)
 
 // Set to 1 to output a audio.buf file from the mixer.
-#define PUNP_SOUND_DEBUG_FILE 0
+#define PUNP_SOUND_DEBUG_FILE 1
 #define PUNP_SOUND_CHANNELS 2
 #define PUNP_SOUND_BUFFER_CHUNK_COUNT 16
 #define PUNP_SOUND_BUFFER_CHUNK_SAMPLES  3000
@@ -615,7 +621,7 @@ static void
 punp_sound_load_stbv(Sound *sound, stb_vorbis *stream)
 {
     stb_vorbis_info info = stb_vorbis_get_info(stream);
-    sound->volume = 0.8f;
+    sound->volume = PUNP_SOUND_DEFAULT_SOUND_VOLUME;
     sound->rate = info.sample_rate;
     sound->samples_count = stb_vorbis_stream_length_in_samples(stream);
     sound->samples = bank_push(CORE->storage, PUNP_SOUND_SAMPLES_TO_BYTES(sound->samples_count));
@@ -709,12 +715,12 @@ sound_play(Sound *sound)
     }
 }
 
-static inline i16 *
-punp_audio_source_sample(PunPAudioSource *source, size_t position)
-{
-    size_t resampled_position = (size_t)((f32)position * source->rate);
-    return source->sound->samples + ((source->position + resampled_position) * 2);
-}
+//static inline i16 *
+//punp_audio_source_sample(PunPAudioSource *source, size_t position)
+//{
+//    size_t resampled_position = (size_t)((f32)position * source->rate);
+//    return source->sound->samples + ((source->position + resampled_position) * 2);
+//}
 
 #if PUNP_SOUND_DEBUG_FILE
 FILE *punp_audio_buf_file= 0;
@@ -786,9 +792,8 @@ punp_sound_mix(i16 *buffer, size_t samples_count)
              i != sound_samples;
              ++i)
         {
-            sample = punp_audio_source_sample(source, i);
-            // *it0++ += sound->samples[i * 2 + 0];
-            // *it1++ += sound->samples[i * 2 + 1];
+			sample = &sound->samples[(source->position + (size_t)((f32)i * source->rate)) * 2];
+            //sample = punp_audio_source_sample(source, i);
             *it0++ += sample[0] * sound->volume;
             *it1++ += sample[1] * sound->volume;
         }
@@ -809,21 +814,24 @@ punp_sound_mix(i16 *buffer, size_t samples_count)
     // Put to output buffer, clamp and convert to 16-bit.
     //
 
-#define MIX_CLIP_(in, clip) (0.5 * (abs(in + clip) - abs(in - clip)) * CORE->audio_volume)
-// #define MIX_CLIP_(in, clip) (1.5 * in - 0.5 * in * in * in)
+// #define MIX_CLIP_(in, clip) (0.5 * (abs(in + clip) - abs(in - clip)) * CORE->audio_volume)
 
     it0 = channel0;
     it1 = channel1;
     f32 s1, s2;
     i16 *it_buffer = buffer;
     for (i = 0; i != samples_count; ++i) {
-		s1 = *it0++ * sound->volume;
-        s2 = *it1++ * sound->volume;
-        *it_buffer++ = (i16)(MIX_CLIP_(s1, 32767));
-        *it_buffer++ = (i16)(MIX_CLIP_(s2, 32767));
+		s1 = *it0++ * sound->volume * CORE->audio_volume;
+        s2 = *it1++ * sound->volume * CORE->audio_volume;
+        // *it_buffer++ = (i16)(MIX_CLIP_(s1, 32767));
+        // *it_buffer++ = (i16)(MIX_CLIP_(s2, 32767));
+        // *it_buffer++ = (i16)(s1 + 0.5f);
+        // *it_buffer++ = (i16)(s2 + 0.5f);
+        *it_buffer++ = (i16)clamp(s1, -32768, 32767);
+        *it_buffer++ = (i16)clamp(s2, -32768, 32767);
     }
 
-#undef MIX_CLIP_
+// #undef MIX_CLIP_
 
     bank_end(&bank_state);
 }
@@ -1163,7 +1171,7 @@ WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR command_line, int sho
 
     clip_reset();
 
-    CORE->audio_volume = 0.75f;
+    CORE->audio_volume = PUNP_SOUND_DEFAULT_MASTER_VOLUME;
 
     //
     //
