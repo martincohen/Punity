@@ -6,6 +6,9 @@
  */ 
 
 /**
+ * Version 1.4
+ * - Fixed audio clipping problems by providing a soft-clip.
+ * - Added master and per-sound volume controls.
  * Version 1.3
  * - Fixed RGB in bitmap loader on Windows.
  * Version 1.2
