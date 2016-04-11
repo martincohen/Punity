@@ -37,7 +37,7 @@
 #define PUNP_FRAME_TIME    (1.0/30.0)
 
 // Set to 1 to output a audio.buf file from the mixer.
-#define PUNP_SOUND_DEBUG_FILE 1
+#define PUNP_SOUND_DEBUG_FILE 0
 #define PUNP_SOUND_CHANNELS 2
 #define PUNP_SOUND_BUFFER_CHUNK_COUNT 16
 #define PUNP_SOUND_BUFFER_CHUNK_SAMPLES  3000

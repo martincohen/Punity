@@ -194,9 +194,11 @@ You can run `devenv bin\main.exe` in case you're running from *Visual Studio Com
 
 A list of tasks I keep with important changes planned to appear in upcoming releases.
 
+- Tilemaps.
 - `draw_frame()`
 - `draw_circle()`
 - `draw_line()`
+- Limit the number of audio voices.
 - Palette rotations, shifting, etc.
 - Experiment with a reasonable replacement of `StretchDIBits` to gain more performance.
 - Animated GIF recording. Will need to solve the previous issues with it being too slow. Probably first record the frames to memory, then process the gif in a separate thread.
