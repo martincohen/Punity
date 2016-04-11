@@ -1,6 +1,6 @@
-@echo off
-
+echo off
 set compiler=cl
+setlocal enableextensions enabledelayedexpansion
 
 if not exist bin mkdir bin
 
@@ -23,15 +23,16 @@ if "%compiler%"=="cl" (
 	pushd bin
 	if "%1"=="release" (
 		echo Building release...
-		cl %common_c% -O2 -DRELEASE_BUILD /Gy /Oy %common_l% 
+		cl !common_c! -O2 -DRELEASE_BUILD /Gy /Oy !common_l! 
 		echo Stripping...
 		strip main.exe
-	) else if "%1"=="released" (
+	) else if "!1"=="released" (
 		echo Building release with debug information...
-		cl %common_c% -O2 -DRELEASE_BUILD /Gy /Oy /Z7 %common_l% 
+		cl !common_c! -O2 -DRELEASE_BUILD /Gy /Oy /Z7 !common_l! 
 	) else (
 		echo Building debug...
-		cl %common_c% -Od -Z7 %common_l%
+		echo cl !common_c! -O2 -DRELEASE_BUILD /Gy /Oy !common_l! 
+		cl !common_c! -Od -Z7 !common_l!
 	)
 	popd
 ) else if "%compiler%"=="gcc" (

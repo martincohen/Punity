@@ -1,5 +1,5 @@
 icon.ico ICON "res\\icon.ico"
 splash.png RESOURCE "res\\splash.png"
 font.png RESOURCE "res\\font.png"
-sound1.ogg RESOURCE "res\\sound2.ogg"
+sound1.ogg RESOURCE "res\\sound1-16kHz.ogg"
 sound2.ogg RESOURCE "res\\sound2-16kHz.ogg"

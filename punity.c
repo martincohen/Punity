@@ -30,6 +30,8 @@
 #define PUNP_WINDOW_HEIGHT (CANVAS_HEIGHT * CANVAS_SCALE)
 #define PUNP_FRAME_TIME    (1.0/30.0)
 
+// Set to 1 to output a audio.buf file from the mixer.
+#define PUNP_SOUND_DEBUG_FILE 0
 #define PUNP_SOUND_CHANNELS 2
 #define PUNP_SOUND_BUFFER_CHUNK_COUNT 16
 #define PUNP_SOUND_BUFFER_CHUNK_SAMPLES  3000
@@ -208,7 +210,7 @@ bank_push(Bank *stack, u32 size)
     ASSERT(stack);
     ASSERT(stack->begin);
 	if ((stack->end - stack->it) < size) {
-		printf("Not enought memory in bank (%d required, %d available).\n", (stack->end - stack->it), size);
+		printf("Not enought memory in bank (%d required, %d available).\n", (int)(stack->end - stack->it), size);
 		ASSERT(0);
 		return 0;
 	}
@@ -613,6 +615,7 @@ static void
 punp_sound_load_stbv(Sound *sound, stb_vorbis *stream)
 {
     stb_vorbis_info info = stb_vorbis_get_info(stream);
+    sound->volume = 0.8f;
     sound->rate = info.sample_rate;
     sound->samples_count = stb_vorbis_stream_length_in_samples(stream);
     sound->samples = bank_push(CORE->storage, PUNP_SOUND_SAMPLES_TO_BYTES(sound->samples_count));
@@ -698,10 +701,6 @@ sound_play(Sound *sound)
 
     if (source)
 	{
-        // Playback is in 48000
-        // Audio is in 24000
-        // Audio must advance it's position by half sample for each playback sample.
-        // rate = sound->rate / PUNP_SOUND_RATE
         memset(source, 0, sizeof(PunPAudioSource));
         source->sound = sound;
         source->rate = (f32)sound->rate / (f32)SOUND_SAMPLE_RATE;
@@ -717,6 +716,22 @@ punp_audio_source_sample(PunPAudioSource *source, size_t position)
     return source->sound->samples + ((source->position + resampled_position) * 2);
 }
 
+#if PUNP_SOUND_DEBUG_FILE
+FILE *punp_audio_buf_file= 0;
+static void
+punp_win32_write_audio_buf(char *note, i16 *ptr, size_t size)
+{    
+    if (punp_audio_buf_file
+== 0) {
+        punp_audio_buf_file
+    = fopen("audio.buf", "wb+");
+        ASSERT(punp_audio_buf_file);
+    }
+    // fprintf(punp_audio_buf_file, "%s %d", note, size);
+    fwrite(ptr, size, 1, punp_audio_buf_file);
+}
+#endif
+
 // Called from platform to fill in the audio buffer.
 //
 static void
@@ -724,8 +739,9 @@ punp_sound_mix(i16 *buffer, size_t samples_count)
 {
     BankState bank_state = bank_begin(CORE->stack);
 
-    f32 *channel0 = bank_push(CORE->stack, samples_count * sizeof(f32));
-    f32 *channel1 = bank_push(CORE->stack, samples_count * sizeof(f32));
+    size_t size =  samples_count * sizeof(f32);
+    f32 *channel0 = bank_push(CORE->stack, size);
+    f32 *channel1 = bank_push(CORE->stack, size);
 
     f32 *it0;
     f32 *it1;
@@ -738,10 +754,8 @@ punp_sound_mix(i16 *buffer, size_t samples_count)
     it0 = channel0;
     it1 = channel1;
 
-    for (i = 0; i != samples_count; ++i) {
-        *it0++ = 0.0f;
-        *it1++ = 0.0f;
-    }
+    memset(it0, 0, size);
+    memset(it1, 0, size);
 
     //
     // Mix the sources.
@@ -775,8 +789,8 @@ punp_sound_mix(i16 *buffer, size_t samples_count)
             sample = punp_audio_source_sample(source, i);
             // *it0++ += sound->samples[i * 2 + 0];
             // *it1++ += sound->samples[i * 2 + 1];
-            *it0++ += sample[0];
-            *it1++ += sample[1];
+            *it0++ += sample[0] * sound->volume;
+            *it1++ += sample[1] * sound->volume;
         }
 
         source->position += sound_samples * source->rate;
@@ -795,13 +809,21 @@ punp_sound_mix(i16 *buffer, size_t samples_count)
     // Put to output buffer, clamp and convert to 16-bit.
     //
 
+#define MIX_CLIP_(in, clip) (0.5 * (abs(in + clip) - abs(in - clip)) * CORE->audio_volume)
+// #define MIX_CLIP_(in, clip) (1.5 * in - 0.5 * in * in * in)
+
     it0 = channel0;
     it1 = channel1;
+    f32 s1, s2;
     i16 *it_buffer = buffer;
     for (i = 0; i != samples_count; ++i) {
-        *it_buffer++ = (i16)(*it0++ + 0.5f);
-        *it_buffer++ = (i16)(*it1++ + 0.5f);
+		s1 = *it0++ * sound->volume;
+        s2 = *it1++ * sound->volume;
+        *it_buffer++ = (i16)(MIX_CLIP_(s1, 32767));
+        *it_buffer++ = (i16)(MIX_CLIP_(s2, 32767));
     }
+
+#undef MIX_CLIP_
 
     bank_end(&bank_state);
 }
@@ -1069,7 +1091,6 @@ punp_win32_sound_step()
     DWORD lock_size = chunk_size;
 
     if (lock_cursor == punp_win32_audio_cursor) {
-		// printf("Audio frame skip.\n");
 	    return;
 	}
 
@@ -1087,8 +1108,14 @@ punp_win32_sound_step()
     }
 
     punp_sound_mix(range1, PUNP_SOUND_BYTES_TO_SAMPLES(range1_size));
+#if PUNP_SOUND_DEBUG_FILE
+    punp_win32_write_audio_buf("range1", range1, range1_size);
+#endif
     if (range2) {
         punp_sound_mix(range2, PUNP_SOUND_BYTES_TO_SAMPLES(range2_size));
+#if PUNP_SOUND_DEBUG_FILE
+        punp_win32_write_audio_buf("range2", range2, range2_size);
+#endif
     }
 
     IDirectSoundBuffer8_Unlock(punp_win32_audio_buffer,
@@ -1135,6 +1162,8 @@ WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR command_line, int sho
     bitmap_clear(CORE->canvas, COLOR_TRANSPARENT);
 
     clip_reset();
+
+    CORE->audio_volume = 0.75f;
 
     //
     //
@@ -1310,6 +1339,10 @@ WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR command_line, int sho
                CORE->storage->it - CORE->storage->begin);
 #endif
     }
+
+#if PUNP_SOUND_DEBUG_FILE
+    fclose(punp_audio_buf_file);
+#endif
 
     return 0;
 }

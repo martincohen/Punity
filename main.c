@@ -36,7 +36,7 @@ void
 step()
 {
 	if (key_pressed(KEY_SPACE)) {
-		sound_play(&sound2);
+		sound_play(&sound1);
 	}
 
 	if (key_down(KEY_RIGHT)) {

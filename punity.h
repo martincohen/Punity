@@ -93,6 +93,10 @@ typedef u32      b32;
 #define minimum(a, b) (a) < (b) ? (a) : (b)
 #define clamp(x, a, b)  (maximum(a, minimum(x, b)))
 
+#ifndef M_PI_2
+#define M_PI_2 1.57079632679489661923
+#endif
+
 //
 // Utility
 //
@@ -304,6 +308,7 @@ void text_draw(i32 x, i32 y, const char *text, u8 color);
 
 typedef struct
 {
+    f32 volume;
     i32 channel_count;
     u32 rate;
     i16 *samples;
@@ -394,6 +399,8 @@ typedef struct
     Rect clip;
 
     Font *font;
+
+    f32 audio_volume;
 }
 Core;
 
