@@ -5,18 +5,24 @@ static Font font;
 static Sound sound1;
 static Sound sound2;
 
-#define COLOR_BLACK (1)
-#define COLOR_WHITE (2)
+typedef enum {
+	PC_TRANSPARENT,
+	PC_BLACK,
+	PC_WHITE,
+	PC_SKY_BLUE,
+
+	PC_COUNT,
+} PaletteColor;
 
 void
-init()
+init(void)
 {
-    CORE->palette.colors[0] = color_make(0x00, 0x00, 0x00, 0x00);
-    CORE->palette.colors[1] = color_make(0x00, 0x00, 0x00, 0xff);
-    CORE->palette.colors[2] = color_make(0xff, 0xff, 0xff, 0xff);
-    CORE->palette.colors[3] = color_make(0x63, 0x9b, 0xff, 0xff);
+    CORE->palette.colors[PC_TRANSPARENT] = color_make(0x00, 0x00, 0x00, 0x00);
+    CORE->palette.colors[PC_BLACK]       = color_make(0x00, 0x00, 0x00, 0xff);
+    CORE->palette.colors[PC_WHITE]       = color_make(0xff, 0xff, 0xff, 0xff);
+    CORE->palette.colors[PC_SKY_BLUE]    = color_make(0x63, 0x9b, 0xff, 0xff);
 
-    CORE->palette.colors_count = 4;
+    CORE->palette.colors_count = PC_COUNT;
     canvas_clear(1);
 
 	bitmap_load_resource(&splash, "splash.png");
@@ -33,7 +39,7 @@ init()
 }
 
 void
-step()
+step(void)
 {
 	if (key_pressed(KEY_SPACE)) {
 		sound_play(&sound1);
@@ -68,9 +74,11 @@ step()
 
     rect_draw(rect_make_size(32, 32, 8, 8), 2);
 
-    static char buf[256];
-    sprintf(buf, "%03f %05d", CORE->perf_step.delta, (i32)CORE->frame);
-    text_draw(0, 0, buf, 2);
+    {
+	    static char buf[256];
+	    sprintf(buf, "%03f %05d", CORE->perf_step.delta, (i32)CORE->frame);
+	    text_draw(0, 0, buf, 2);
+	}
 
-	CORE->canvas->pixels[0] = COLOR_WHITE;
+	CORE->canvas->pixels[0] = PC_WHITE;
 }

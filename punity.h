@@ -1,11 +1,15 @@
-/** 
+/**
  * Copyright (c) 2016 martincohen
  *
  * This library is free software; you can redistribute it and/or modify it
  * under the terms of the MIT license. See LICENSE for details.
- */ 
+ */
 
 /**
+ * Version 1.5
+ * - Support for older versions of MSVC
+ * - Fixed check if sound is NULL before adding to buffer
+ * - Added usize and isize types (register sized types)
  * Version 1.4
  * - Fixed audio clipping problems by providing a soft-clip.
  * - Added master and per-sound volume controls.
@@ -28,8 +32,28 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
-#include <stdbool.h>
 #include <assert.h>
+
+// NOTE(bill): Get true and false
+#if !defined(__cplusplus)
+    #if defined(_MSC_VER) && _MSC_VER <= 1800
+        #ifndef false
+        #define false 0
+        #endif
+        #ifndef true
+        #define true 1
+        #endif
+    #else
+        #include <stdbool.h>
+    #endif
+#endif
+
+
+#if !defined(__cplusplus) && defined(_MSC_VER) && _MSC_VER <= 1800
+    #define inline   __inline
+    #define restrict __restrict
+#endif
+
 
 #ifndef NO_CONFIG
 #include "config.h"
@@ -77,17 +101,20 @@
 #define COLOR_CHANNELS b, g, r, a
 #endif
 
-typedef uint8_t  u8;
-typedef int8_t   i8;
-typedef uint16_t u16;
-typedef int16_t  i16;
-typedef uint32_t u32;
-typedef int32_t  i32;
-typedef uint64_t u64;
-typedef int64_t  i64;
-typedef float    f32;
-typedef double   f64;
-typedef u32      b32;
+typedef uint8_t   u8;
+typedef int8_t    i8;
+typedef uint16_t  u16;
+typedef int16_t   i16;
+typedef uint32_t  u32;
+typedef int32_t   i32;
+typedef uint64_t  u64;
+typedef int64_t   i64;
+typedef float     f32;
+typedef double    f64;
+typedef i32       b32;
+// Allow for signed and unsigned register sized integers
+typedef size_t    usize;
+typedef ptrdiff_t isize;
 
 #define unused(x) (void)x
 #define align_to(value, N) ((value + (N-1)) & ~(N-1))
@@ -104,14 +131,14 @@ typedef u32      b32;
 // Utility
 //
 
-typedef struct 
+typedef struct
 {
     f64 stamp;
     f32 delta;
 }
 PerfSpan;
 
-f64 perf_get();
+f64 perf_get(void);
 
 // Sets the stamp, keeps the delta.
 //
@@ -164,7 +191,7 @@ void bank_end(BankState *state);
 // File I/O
 //
 
-void *file_read(const char *path, size_t *size);
+void *file_read(const char *path, isize *size);
 
 //
 //
@@ -174,8 +201,7 @@ void *file_read(const char *path, size_t *size);
 
 typedef union
 {
-    struct
-    {
+    struct {
         u8 COLOR_CHANNELS;
     };
     u32 rgba;
@@ -205,7 +231,7 @@ typedef union
         i32 right;
         i32 bottom;
     };
-    i32 E[4];
+    i32 e[4];
 }
 Rect;
 
@@ -277,9 +303,9 @@ void canvas_clear(u8 color);
 // The rectangle is intersected with the canvas rectangle [0, 0, canvas.width, canvas.height].
 void clip_set(Rect rect);
 // Resets clip to current canvas bitmap.
-void clip_reset();
+void clip_reset(void);
 // Checks clipping rectangle whether it's valid.
-bool clip_check();
+b32 clip_check(void);
 
 // Produces a new palette B from palette A by moving colors.
 // This is useful if you want to lighten or darken the colors.
@@ -316,7 +342,7 @@ typedef struct
     u32 rate;
     i16 *samples;
     // Samples per channel.
-    size_t samples_count;
+    isize samples_count;
 }
 Sound;
 
@@ -331,7 +357,7 @@ void sound_load_resource(Sound *sound, const char *resource_name);
 // Resources
 //
 
-void *resource_get(const char *name, size_t *size);
+void *resource_get(const char *name, isize *size);
 
 //
 // Core
@@ -365,7 +391,7 @@ typedef struct
     b32 running;
 
     u32 key_modifiers;
-    
+
     // Indexed with KEY_* constants.
     // 0 for up
     // 1 for down
@@ -380,17 +406,17 @@ typedef struct
 
     // Total frame time.
     PerfSpan perf_frame;
-	// Total time taken to process everything except the vsync.
-	PerfSpan perf_frame_inner;
+    // Total time taken to process everything except the vsync.
+    PerfSpan perf_frame_inner;
 
-	// Total time taken to step.
+    // Total time taken to step.
     PerfSpan perf_step;
-	// Total time taken to process audio.
-	PerfSpan perf_audio;
+    // Total time taken to process audio.
+    PerfSpan perf_audio;
     // Total time taken to do the blit.
     PerfSpan perf_blit;
-	PerfSpan perf_blit_cvt;
-	PerfSpan perf_blit_gdi;
+    PerfSpan perf_blit_cvt;
+    PerfSpan perf_blit_gdi;
 
     // Current frame number.
     i64 frame;
@@ -420,9 +446,9 @@ void panic(const char *message, const char *description, const char *function, c
 #define ASSERT_DEBUG ASSERT
 
 // To be defined in main.c.
-void init();
+extern void init(void);
 // To be defined in main.c.
-void step();
+extern void step(void);
 
 //
 // Keys
@@ -444,8 +470,8 @@ void step();
 #define KEY_UNKNOWN            -1
 #define KEY_INVALID            -2
 
-#define KEY_LBUTTON	            1
-#define KEY_RBUTTON	            2
+#define KEY_LBUTTON             1
+#define KEY_RBUTTON             2
 #define KEY_CANCEL              3
 #define KEY_MBUTTON             4
 
