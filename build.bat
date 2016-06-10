@@ -1,4 +1,4 @@
-echo off
+@echo off
 set compiler=cl
 setlocal enableextensions enabledelayedexpansion
 
@@ -14,7 +14,7 @@ if "%1"=="gcc" (
 
 if "%compiler%"=="cl" (
 	echo Using MSVC
-	set common_c=..\main.c -nologo -D_WIN32_WINNT=0x0501 -MTd -TC -EHa- -I..\ -I..\lib
+	set common_c=..\main.c -nologo -D_WIN32_WINNT=0x0501 -MTd -TC -FC -EHa- -I..\ -I..\lib
 	set common_l=/link /OPT:REF user32.lib gdi32.lib winmm.lib main.res
 
 	echo Building resources...
@@ -31,7 +31,6 @@ if "%compiler%"=="cl" (
 		cl !common_c! -O2 -DRELEASE_BUILD /Gy /Oy /Z7 !common_l! 
 	) else (
 		echo Building debug...
-		echo cl !common_c! -O2 -DRELEASE_BUILD /Gy /Oy !common_l! 
 		cl !common_c! -Od -Z7 !common_l!
 	)
 	popd

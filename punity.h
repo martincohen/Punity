@@ -6,6 +6,26 @@
  */ 
 
 /**
+ * Version 1.6
+ * - Version actually used for Ludum Dare and Low-Rez jams.
+ * - "Cherchez" has been made with this version: https://martincohen.itch.io/cherchez
+ * - All the configuration macros are now prefixed with PUN_
+ * - Fixed bug in sound mixing.
+ * - All rendering properties are now stored in dedicated `Canvas` struct.
+ * - Added simple randomization functions (see the documentation).
+ * - Added `file_write` function to accompany `file_read`.
+ * - Added basic `V2f` struct and functions.
+ * - Added vertical flipping for `bitmap_draw` function.
+ * - Reworked `bitmap_draw` function.
+ * - Added drawing list support (see the documentation).
+ * - Added `*_push` functions for pushing draw operations to draw list (see the documentation)
+ * Version 1.5
+ * - Renamed configuration macros to use PUN_* prefix
+ * - PUN_MAIN can now be used to not define the main entry function.
+ * - Forced PUN_COLOR_BLACK to 1 and PUN_COLOR_WHITE to 2.
+ * - Changed bitmap_draw signature to have Bitmap* at the beginning.
+ * - Changed text_darw signature to have const char* at the beginning.
+ * - Translation direction changed in bitmap_draw() and text_draw().
  * Version 1.4
  * - Fixed audio clipping problems by providing a soft-clip.
  * - Added master and per-sound volume controls.
@@ -29,80 +49,113 @@
 #include <string.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include <math.h>
 #include <assert.h>
 
-#ifndef NO_CONFIG
+#ifndef PUN_MAIN
+#define PUN_MAIN 1
+#endif
+
+#ifndef PUN_CONFIG
+#define PUN_CONFIG 1
+#endif
+
+#if PUN_CONFIG
 #include "config.h"
 #endif
 
-#define PLATFORM_WINDOWS 1
+#define PUN_PLATFORM_WINDOWS 1
 
-#ifndef SOUND_CHANNELS
-#define SOUND_CHANNELS 4
+#ifndef PUN_WINDOW_TITLE
+#define PUN_WINDOW_TITLE "Punity"
 #endif
 
-#ifndef SOUND_SAMPLE_RATE
-#define SOUND_SAMPLE_RATE 48000
+#ifndef PUN_CANVAS_WIDTH
+#define PUN_CANVAS_WIDTH 128
 #endif
 
-#ifndef CANVAS_WIDTH
-#define CANVAS_WIDTH 128
+#ifndef PUN_CANVAS_HEIGHT
+#define PUN_CANVAS_HEIGHT 128
 #endif
 
-#ifndef CANVAS_HEIGHT
-#define CANVAS_HEIGHT 128
+#ifndef PUN_CANVAS_SCALE
+#define PUN_CANVAS_SCALE 2
 #endif
 
-#ifndef CANVAS_SCALE
-#define CANVAS_SCALE 2
+#ifndef PUN_STACK_CAPACITY
+#define PUN_STACK_CAPACITY megabytes(1)
 #endif
 
-#ifndef STACK_CAPACITY
-#define STACK_CAPACITY megabytes(1)
+#ifndef PUN_STORAGE_CAPACITY
+#define PUN_STORAGE_CAPACITY megabytes(1)
 #endif
 
-#ifndef STORAGE_CAPACITY
-#define STORAGE_CAPACITY megabytes(1)
+#ifndef PUN_DRAW_LIST_RESERVE
+#define PUN_DRAW_LIST_RESERVE 128
 #endif
 
-#ifndef USE_STB_IMAGE
-#define USE_STB_IMAGE 0
+#ifndef PUN_USE_STB_IMAGE
+#define PUN_USE_STB_IMAGE 0
 #endif
 
-#ifndef USE_STB_VORBIS
-#define USE_STB_VORBIS 0
+#ifndef PUN_USE_STB_VORBIS
+#define PUN_USE_STB_VORBIS 0
 #endif
 
-#if PLATFORM_WINDOWS
+#ifndef PUN_SOUND_CHANNELS
+#define PUN_SOUND_CHANNELS 4
+#endif
+
+#ifndef PUN_SOUND_SAMPLE_RATE
+#define PUN_SOUND_SAMPLE_RATE 48000
+#endif
+
+#if PUN_PLATFORM_WINDOWS
 #define COLOR_CHANNELS b, g, r, a
 #endif
 
-typedef uint8_t  u8;
-typedef int8_t   i8;
-typedef uint16_t u16;
-typedef int16_t  i16;
-typedef uint32_t u32;
-typedef int32_t  i32;
-typedef uint64_t u64;
-typedef int64_t  i64;
-typedef float    f32;
-typedef double   f64;
-typedef u32      b32;
+typedef uint8_t   u8;
+typedef int8_t    i8;
+typedef uint16_t  u16;
+typedef int16_t   i16;
+typedef uint32_t  u32;
+typedef int32_t   i32;
+typedef uint64_t  u64;
+typedef int64_t   i64;
+typedef float     f32;
+typedef double    f64;
+typedef u32       b32;
+typedef size_t    usize;
+typedef ptrdiff_t isize;
 
 #define unused(x) (void)x
 #define align_to(value, N) ((value + (N-1)) & ~(N-1))
+#define ceil_div(n, a) (((n) + (a-1))/(a))
+#define equalf(a, b, epsilon) (fabs(b - a) <= epsilon)
 
 #define maximum(a, b) (a) > (b) ? (a) : (b)
 #define minimum(a, b) (a) < (b) ? (a) : (b)
 #define clamp(x, a, b)  (maximum(a, minimum(x, b)))
+#define array_count(a) (sizeof(a) / sizeof((a)[0]))
+
+#define lerp(v0, v1, t) \
+      ((1-(t))*(v0) + (t)*(v1))
 
 #ifndef M_PI_2
 #define M_PI_2 1.57079632679489661923
 #endif
 
+#define v2_inner(ax, ay, bx, by) \
+    ((ax)*(bx) + (ay)*(by))
+
 //
 // Utility
 //
+
+u32 rand_u(u32 *x);
+f32 rand_f(u32 *x);
+f32 rand_fr(u32 *x, f32 min, f32 max);
+i32 rand_ir(u32 *x, i32 min, i32 max);
 
 typedef struct 
 {
@@ -147,6 +200,7 @@ void virtual_free(void *ptr, u32 size);
 void *virtual_alloc(void* ptr, u32 size);
 
 void bank_init(Bank *bank, u32 capacity);
+void bank_clear(Bank *bank);
 void *bank_push(Bank *bank, u32 size);
 void bank_pop(Bank *bank, void *ptr);
 
@@ -165,12 +219,61 @@ void bank_end(BankState *state);
 //
 
 void *file_read(const char *path, size_t *size);
+bool file_write(const char *path, void *ptr, size_t size);
 
 //
-//
+// Math
 //
 
-#define COLOR_TRANSPARENT 0
+typedef struct
+{
+    f32 x;
+    f32 y;
+}
+V2f;
+
+extern inline V2f
+v2f_make(f32 x, f32 y)
+{
+    V2f v;
+    v.x = x;
+    v.y = y;
+    return v;
+}
+
+extern inline f32
+v2f_length(V2f v)
+{
+    return sqrtf((v.x * v.x) + (v.y * v.y));
+}
+
+extern inline V2f
+v2f_normalize(V2f v)
+{
+    f32 length = v2f_length(v);
+    V2f ret = v2f_make(v.x / length, v.y / length);
+    return ret;
+}
+
+extern inline f32
+v2f_angle(V2f v)
+{
+    return atan2f(v.y, v.x);
+}
+
+extern inline V2f
+v2f_minus(V2f a, V2f b)
+{
+    return v2f_make( a.x - b.x, a.y - b.y );
+}
+
+//
+// Graphics
+//
+
+#define PUN_COLOR_TRANSPARENT 0
+#define PUN_COLOR_BLACK 1
+#define PUN_COLOR_WHITE 2
 
 typedef union
 {
@@ -215,8 +318,16 @@ Rect;
     (r)->max_x += tx; \
     (r)->max_y += ty;
 
+#define rect_width(r) \
+    ((r)->max_x - (r)->min_x)
+
+#define rect_height(r) \
+    ((r)->max_y - (r)->min_y)
+
 inline Rect rect_make(i32 min_x, i32 min_y, i32 max_x, i32 max_y);
 inline Rect rect_make_size(i32 x, i32 y, i32 w, i32 h);
+inline Rect rect_make_centered(i32 x, i32 y, i32 w, i32 h);
+inline bool rect_contains_point(Rect *rect, i32 x, i32 y);
 
 typedef struct
 {
@@ -234,8 +345,19 @@ typedef struct
 }
 Font;
 
-#define BITMAP_8  1
-#define BITMAP_32 4
+typedef struct
+{
+    Bitmap *bitmap;
+    Palette palette;
+    i32 translate_x;
+    i32 translate_y;
+    Rect clip;
+    Font *font;
+}
+Canvas;
+
+#define PUN_BITMAP_8  1
+#define PUN_BITMAP_32 4
 
 // Initializes the bitmap struct and copies the data from pixels to the CORE->storage.
 // If pixels is 0, the bitmap's pixel data are only allocated (not initialized)
@@ -261,7 +383,7 @@ void bitmap_load_raw(Bitmap *bitmap, FILE *file);
 
 // Loads bitmap from an image file.
 // This only works if USE_STB_IMAGE is defined.
-#if USE_STB_IMAGE
+#if PUN_USE_STB_IMAGE
 void bitmap_load(Bitmap *bitmap, const char *path);
 void bitmap_load_resource(Bitmap *bitmap, const char *resource_name);
 #endif
@@ -290,39 +412,102 @@ bool clip_check();
 
 // Draws a filled rectangle to the canvas.
 void rect_draw(Rect rect, u8 color);
+void rect_draw_push(Rect rect, u8 color, i32 z);
 // Draws a frame of a rectangle to the canvas.
 // TODO: void frame_draw(Rect rect, u8 color);
 
 enum {
-    DrawFlags_FlipH = 0x01,
-    DrawFlags_Mask  = 0x02
+    DrawFlags_None  = 0x00,
+    DrawFlags_FlipH = 1 << 0,
+    DrawFlags_FlipV = 1 << 1,
+    DrawFlags_Mask  = 1 << 2,
 };
 
 // Draws a bitmap to the canvas.
-void bitmap_draw(i32 x, i32 y, i32 pivot_x, i32 pivot_y, Bitmap *bitmap, Rect *bitmap_rect, u32 flags, u8 color);
+//
+void bitmap_draw(
+    Bitmap *bitmap,
+    i32 x,
+    i32 y,
+    i32 pivot_x,
+    i32 pivot_y,
+    Rect *bitmap_rect,
+    u32 flags,
+    u8 color);
+
+// Adds a bitmap draw to the CORE->draw_list.
+//
+void bitmap_draw_push(
+    Bitmap *bitmap,
+    i32 x,
+    i32 y,
+    i32 pivot_x,
+    i32 pivot_y,
+    Rect *bitmap_rect,
+    u32 flags,
+    u8 color,
+    i32 z);
 
 // Draws text to the canvas.
 // Fails if CORE->font is not set, as it's using it draw the text.
-void text_draw(i32 x, i32 y, const char *text, u8 color);
+void text_draw(const char *text, i32 x, i32 y, u8 color);
+void text_draw_push(const char *text, i32 x, i32 y, u8 color, i32 z);
+
+//
+// DrawList
+//
+
+#define PUN_DRAW_LIST_CUSTOM(name) void name(void *data, size_t data_size)
+typedef PUN_DRAW_LIST_CUSTOM(DrawListCustomF);
+
+
+typedef struct
+{
+    // TODO: Potentially we don't need both of these, storage would do.
+    struct DrawListItem *items_storage;
+    struct DrawListItem **items;
+    size_t items_count;
+    size_t items_reserve;
+    size_t items_additional;
+}
+DrawList;
+
+void draw_list_init(DrawList *list, size_t reserve);
+
+void draw_list_begin(DrawList *list);
+void draw_list_end(DrawList *list);
+
+void *draw_list_push(DrawList *list, i32 z, size_t data_size);
+void draw_list_add(DrawList *list, i32 z, void *data, size_t data_size);
 
 //
 // Sound
 //
 
+enum
+{
+    SoundFlag_Loop        = 1 << 1,
+    SoundFlag_FadeOut     = 1 << 2,
+    SoundFlag_FadeIn      = 1 << 3,
+};
+
 typedef struct
 {
+    char *name;
+    u32 flags;
     f32 volume;
-    i32 channel_count;
+    i32 channels;
     u32 rate;
     i16 *samples;
     // Samples per channel.
     size_t samples_count;
+    i32 sources_count;
 }
 Sound;
 
 void sound_play(Sound *sound);
 
-#if USE_STB_VORBIS
+#if PUN_USE_STB_VORBIS
 void sound_load(Sound *sound, const char *path);
 void sound_load_resource(Sound *sound, const char *resource_name);
 #endif
@@ -337,7 +522,7 @@ void *resource_get(const char *name, size_t *size);
 // Core
 //
 
-#define KEYS_MAX 256
+#define PUN_KEYS_MAX 256
 
 typedef struct
 {
@@ -370,38 +555,33 @@ typedef struct
     // 0 for up
     // 1 for down
     //
-    u8 key_states[KEYS_MAX];
+    u8 key_states[PUN_KEYS_MAX];
 
     // Indexed with KEY_* constants.
     // 0 for not changed in this frame
     // 1 for changed in this frame
     //
-    u8 key_deltas[KEYS_MAX];
+    u8 key_deltas[PUN_KEYS_MAX];
 
     // Total frame time.
     PerfSpan perf_frame;
-	// Total time taken to process everything except the vsync.
-	PerfSpan perf_frame_inner;
+    // Total time taken to process everything except the vsync.
+    PerfSpan perf_frame_inner;
 
-	// Total time taken to step.
+    // Total time taken to step.
     PerfSpan perf_step;
-	// Total time taken to process audio.
-	PerfSpan perf_audio;
+    // Total time taken to process audio.
+    PerfSpan perf_audio;
     // Total time taken to do the blit.
     PerfSpan perf_blit;
-	PerfSpan perf_blit_cvt;
-	PerfSpan perf_blit_gdi;
+    PerfSpan perf_blit_cvt;
+    PerfSpan perf_blit_gdi;
 
     // Current frame number.
     i64 frame;
 
-    Palette palette;
-    Bitmap *canvas;
-    i32 translate_x;
-    i32 translate_y;
-    Rect clip;
-
-    Font *font;
+    Canvas canvas;
+    DrawList *draw_list;
 
     f32 audio_volume;
 }
@@ -444,8 +624,8 @@ void step();
 #define KEY_UNKNOWN            -1
 #define KEY_INVALID            -2
 
-#define KEY_LBUTTON	            1
-#define KEY_RBUTTON	            2
+#define KEY_LBUTTON             1
+#define KEY_RBUTTON             2
 #define KEY_CANCEL              3
 #define KEY_MBUTTON             4
 
