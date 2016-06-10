@@ -3,12 +3,13 @@
 A tiny game engine with zero dependencies in C that I made for myself to make tiny games. It's great for game jams. It is also my kōhai course in simplicity and a tribute to my senpai and friend [rxi](https://twitter.com/x_rxi).
 
 - Two files: `punity.c`, `punity.h` all ready for you to start working. (maybe also grab `build.bat` when you're at it)
-- Approx. 1500 lines of C code.
+- Approx. 1900 lines of C code.
 - No dependencies.
 - Produces a single executable with all resources baked to it.
 - Images in PNG, JPG, PSD, TGA, GIF, BMP, HDR, PIC, PNM when used with `stb_image`. (see **Integration** below)
 - Sounds in OGG when used with `stb_vorbis`. (see **Integration** below)
 - Drawing bitmaps, texts and standard primitives all in software, this is *feature*, shut up!
+- Deferred drawing through draw lists.
 - Sounds, fonts and bitmap API available.
 
 ## Speed
@@ -128,22 +129,22 @@ In the code, I usually define a `Game` struct that holds all the state and asset
 ```c
 typedef struct
 {
-	Font font;
-	Bitmap background;
-	// ---
+    Font font;
+    Bitmap background;
+    // ---
 }
 Game;
 
 static Game game;
 
 void init() {
-	// To load from a file.
-	bitmap_load(&game.font.bitmap, "res/font.png");
-	// To load from resource.
-	bitmap_load_resource(&game.font.bitmap, "font.png");
+    // To load from a file.
+    bitmap_load(&game.font.bitmap, "res/font.png");
+    // To load from resource.
+    bitmap_load_resource(&game.font.bitmap, "font.png");
 
-	// To use the font.
-	CORE->font = &game.font;
+    // To use the font.
+    CORE->canvas.font = &game.font;
 }
 
 // See the main.c for more examples.
@@ -151,23 +152,65 @@ void init() {
 
 ## Drawing
 
-To customize size and scale of the canvas, change `CANVAS_WIDTH`, `CANVAS_HEIGHT` and `CANVAS_SCALE` macros in `config.h`.
+To customize size and scale of the canvas, change `PUN_CANVAS_WIDTH`, `PUN_CANVAS_HEIGHT` and `PUN_CANVAS_SCALE` macros in `config.h`.
 
-`CORE->canvas` is `Bitmap` struct that allows you to access the frame buffer at any time. You can either change the buffer manually, or use Punity's functions. See `punity.h` for detailed information.
+`CORE->canvas.bitmap` is `Bitmap` struct that allows you to access the frame buffer at any time. You can either change the buffer manually, or use Punity's functions. See `punity.h` for detailed information.
 
 - `rect_draw()` - to draw a filled rectangle.
 - `frame_draw()` - to draw just an frame of a rectangle.
 - `bitmap_draw()` - to draw whole or a piece of bitmap.
-- `text_draw()` - to draw text using `CORE->font`.
+- `text_draw()` - to draw text using `CORE->canvas.font`.
 
-Currently the drawing uses painter's algorithm (last drawn is on top). I plan to add `DrawList` feature so Punity will sort the draw calls by **z** key for you.
+These functions use painter's algorithm (last drawn is on top), however you can use drawing list to draw in any order you want.
+
+### Drawing lists
+
+Functions `draw_list_` add support for deferring and sorting drawing operations by z-key.
+
+```c
+DrawList list;
+// Init with space for 128 drawing operations.
+draw_list_init(&list, 128);
+
+while (running)
+{
+    draw_list_begin(&list);
+    // Call `*_push` drawing functions such as `rect_draw_push(...)`.
+    draw_list_end(&list);
+}
+```
+
+Punity automatically initializes, begins and ends a default drawing list available in `CORE->draw_list`. It's initial reserve parameter can be customized via `PUN_DRAW_LIST_RESERVE` macro (number of items). So you can directly call `*_push` drawing functions without worrying about it too much.
+
+The push functions automatically draw to the `CORE->draw_list` so you don't have to pass it each time. Their signature is the same as their non-push counterparts, only a z-key is needed as last parameter.
+
+In case you need it, you can call `draw_list_end` earlier (in your `step` function), but make sure you call `draw_list_begin` if you need to resume drawing to the list in the same frame (Punity calls `draw_list_begin` itself before the `step` function is called).
+
+The memory needed for the drawing list is taken from the `CORE->stack` bank, so make sure there's enough space, or just adjust it in case it'll fail during the busiest frames. Maximum number of items drawn is not limited to the initial reserve parameter, Punity increases the space for the next frame in case more space is needed (up to the limits of `CORE->stack` bank). This behavior might change in the future. For more details see `draw_list_push_` and `draw_list_begin` source code.
+
+## Audio
+
+Loading the sounds is currently only supported when `PUN_USE_STB_VORBIS` is enabled and the `stb_vorbis.c` is available. The API currently allows for loading and playing a sound (there's no pause, nor stop, nor rewind). Example:
+
+```c
+Sound track, explosion;
+sound_load_resource(&track, "track.ogg");
+sound_load_resource(&explosion, "explosion.ogg");
+// Enable looping of the background track.
+track.flags |= SoundFlag_Loop;
+
+// Loops forever.
+sound_play(&track); 
+// One shot.
+sound_play(&explosion);
+```
 
 ## Integration
 
 Punity is prepared for use with [stb_image](https://github.com/nothings/stb/blob/master/stb_image.h) or [stb_vorbis](https://github.com/nothings/stb/blob/master/stb_vorbis.c) to load images and audio files. The versions that I'm using are available in `lib/` directory.
 
-- In `config.h` enable `USE_STB_IMAGE` macro. It'll allow you to use `bitmap_load` and `bitmap_load_resource` to load PNG, GIS, PSD and more.
-- In `config.h` enable `USE_STB_VORBIS` macro. It'll allow you to use `sound_load` and `sound_load_resource` to load or stream OGG files.
+- In `config.h` enable `PUN_USE_STB_IMAGE` macro. It'll allow you to use `bitmap_load` and `bitmap_load_resource` to load PNG, GIS, PSD and more.
+- In `config.h` enable `PUN_USE_STB_VORBIS` macro. It'll allow you to use `sound_load` and `sound_load_resource` to load or stream OGG files.
 
 ## Debugging
 
