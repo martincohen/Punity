@@ -100,7 +100,7 @@ bank_end(&bank_state);
 For simpler allocations, you can just use `bank_push()` and `bank_pop()`:
 
 ```c
-u8 *canvas = bank_push(CORE->stack, CANVAS_WIDTH * CANVAS_HEIGHT);
+u8 *canvas = bank_push(CORE->stack, PUN_CANVAS_WIDTH * PUN_CANVAS_HEIGHT);
 
 // TODO: Draw naked women on `canvas`.
 // TODO: Blend naked women in `canvas` to the `CORE->canvas`.
