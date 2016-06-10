@@ -43,7 +43,6 @@ There is another project I'm working on called **Blander** which is also quite s
 - **Even more drawing functions** a bit later (`draw_line()`, `draw_circle()`, etc.).
 - **Tile maps** (with support of loading simple Tiled format and with customizable Tile elements).
 - **GIF recorder** to record the screen to animated gifs. Optional, because it brings a dependency on rxi's modified version of [`jo_gif.c`](http://www.jonolick.com/home/gif-writer).
-- **Draw lists** to be able to push drawing operations in arbitrary order, but to get them sorted by *z* coordinate before rendering.
 - **Live asset reloading** in *debug* mode while keeping the same possibility of baking assets to executable as it has now in *release* mode.
 - **SDL platform layer** in an optional separate file `punity_sdl.c` with additional pre-made build scripts (Windows, Linux, Mac OS X, iOS, Android, Raspberry Pi, [Dingux](http://wiki.dingoonity.org/index.php?title=Dingux:About), etc.). This would introduce a dependency on SDL2, though.
 - **Optional integration with Mason** (my other project) that provides single-file build system for C and C++ to replace tedious `.bat`/`.sh` maintenance with awesomely beautiful Lisp dialect from [rxi](https://twitter.com/x_rxi).
