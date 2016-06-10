@@ -58,7 +58,7 @@ Build is **working with MSVC or MinGW**.
 
 Build script is setup to compile `main.c` as single-translation unit, so if you need another C files, include them in `main.c` directly (same as I've include `punity.c` there). If you need something else, modify `build.bat` to you likings.
 
-You can customize some aspects of **Punity** by changing macros in `config.h`, which is included automatically from `punity.h`. If you don't want this, use `#define NO_CONFIG` and specify the macros in any way you feel is better for you.
+You can customize some aspects of **Punity** by changing macros in `config.h`, which is included automatically from `punity.h`. If you don't want this, use `#define PUN_CONFIG 0` and specify the macros in any way you feel is better for you.
 
 To use your own building script and project structure, just grab `punity.h` and `punity.c` and use them as you see fit.
 
@@ -71,7 +71,7 @@ Punity defines the `main()` function for you, but it gives you two other functio
 
 Punity also gives you a pointer to `CORE` (see `Core` struct in `punity.h`) to access canvas, inputs, timers, audio and memory.
 
-The `CORE` is used also within the Punity's functions to make it a bit easier on passing arguments. For example, `text_draw()` expects a font to be set in `CORE->font`. 
+The `CORE` is used also within the Punity's functions to make it a bit easier on passing arguments. For example, `text_draw()` expects a font to be set in `CORE->canvas.font`. 
 
 ## Memory
 
@@ -228,7 +228,7 @@ You can run `devenv bin\main.exe` in case you're running from *Visual Studio Com
 - `lib/stb_image.h` - Optional library to load images.
 - `lib/stb_vorbis.c` - Optional library to load ogg audio files.
 - `build.bat` - MSVC and MinGW build batch file.
-- `config.h` - Example configuration file that customizes Punity. Can be switched off with using `#define NO_CONFIG`
+- `config.h` - Example configuration file that customizes Punity. Can be switched off with using `#define PUN_CONFIG 0`
 - `main.c` - Example application using Punity.
 - `punity.h` - Punity's header file.
 - `punity.c` - Punity's source file.
