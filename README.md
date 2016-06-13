@@ -35,6 +35,8 @@ There is another project I'm working on called **Blander** which is also quite s
 - **No arbitrary limitations.** All the limitations in the system have their reasons (performance, API simplicity). You might be writing a retro game, but the devices today have a lot of memory and computational power to use.
 - **Two files.** Even though it's supposed to be a ready-to-go package, the essence is in two files that you can grab and use.
 
+One of the most important parts of Punity is that it's made to be changed and edited as you need. That way the code can be really simple only giving you basic features and doesn't need to worry about customizations and abstractions.
+
 ## Planned features
 
 **Note that the project is still in development.** More documentation, features, examples and fixes is underway.
