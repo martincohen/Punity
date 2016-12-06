@@ -4034,8 +4034,9 @@ void
 punity_frame_step()
 {   
     BankState stack_state = bank_begin(CORE->stack);
-    f32 perf_step_begin = perf_get();
+    f64 perf_step_begin = perf_get();
     drawlist_begin(CORE->draw_list);
+    // Sleep(10);
     step();
     drawlist_end(CORE->draw_list);
     drawlist_clear(CORE->draw_list);
@@ -4829,12 +4830,12 @@ win32_window_callback_(HWND window, UINT message, WPARAM wp, LPARAM lp)
         case WM_SIZE:
         {
             f32 width  = (UINT)(lp & 0xffff);
-            f32 height = (UINT)(lp >> 16);
+            f32 height = (UINT)(lp >> 16) & 0xffff;
             
-            f32 scale_x = width  / CORE->window.width;
-            f32 scale_y = height / CORE->window.height;
+            f32 scale_x = width  / (f32)CORE->window.width;
+            f32 scale_y = height / (f32)CORE->window.height;
             
-            CORE->window.scale = maximum(scale_x, scale_y);
+            CORE->window.scale = minimum(scale_x, scale_y);
 
             f32 viewport_width  = CORE->window.width  * CORE->window.scale;
             f32 viewport_height = CORE->window.height * CORE->window.scale;
