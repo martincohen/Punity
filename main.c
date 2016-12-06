@@ -3,7 +3,7 @@
 
 typedef struct Game_
 {
-    Font font;
+    Bitmap font;
 }
 Game;
 
