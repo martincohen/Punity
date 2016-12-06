@@ -213,6 +213,32 @@ Punity is prepared for use with [stb_image](https://github.com/nothings/stb/blob
 - In `config.h` enable `PUN_USE_STB_IMAGE` macro. It'll allow you to use `bitmap_load` and `bitmap_load_resource` to load PNG, GIS, PSD and more.
 - In `config.h` enable `PUN_USE_STB_VORBIS` macro. It'll allow you to use `sound_load` and `sound_load_resource` to load or stream OGG files.
 
+## DirectX and shader support
+
+Since version 1.7, Punity blits it's framebuffer through Direct3D 10. This functionality is optional and can be disabled by `#define PUN_PLATFORM_WINDOWS_D3D 0` in the `config.h` file. Apart from being fast to draw on full screen, it's also possible to use a pixel shader for the framebuffer blit.
+
+Please note that Punity still renders to the framebuffer in software, so you still get the raw software access to it every frame. DirectX is only used to blit the framebuffer to the screen, because the `StretchDIBits` (still used as a fallback) was not performing too well.
+
+Punity expects the shader to be provided as a resource defined in `main.rc` file as `default.cso`. The `build.bat` automatically compiles `res/default.hlsl` into a `res/default.cso` file on every build run.
+
+You can replace the `res/default.hlsl` with your own shader. There are several contants that are passed from Punity by default:
+
+```
+cbuffer frame_constants
+{
+    // Current time (CORE->frame * (1/30)).
+    float time;
+    // Current scale / pixel size in pixels. (CORE->viewport_scale).
+    float scale;
+    // Size of the viewport in pixels. (CORE->viewport).
+    float2 size;
+
+    // TODO: Custom members.
+};
+```
+
+You can define you own custom data to be passed to your shader by customizing `Shader` struct in `config.h`. This structure can be accessed via `CORE->shader` pointer at any time in `init()` and `step()` which allows for extra crunchy effects.
+
 ## Debugging
 
 You can run `devenv bin\main.exe` in case you're running from *Visual Studio Command Prompt* (or with `vcvarsall.bat` environment) to debug with Visual Studio. Note that you'll need to build with `build debug` to be able to debug.
@@ -234,6 +260,26 @@ You can run `devenv bin\main.exe` in case you're running from *Visual Studio Com
 - `punity.h` - Punity's header file.
 - `punity.c` - Punity's source file.
 
+## Lunity
+
+Documentation for Lunity is a work in progress.
+
+### LuaJIT on Windows with MinGW
+
+1. Download [LuaJIT](http://luajit.org/download.html)
+2. Extract the ZIP file to `lib/luajit`.
+3. In command prompt go to `lib/luajit/src` and run `msvcbuild`.
+4. That will create lua51.lib and lua51.dll in `lib/luajit/src` directory.
+5. Then build *Lunity* with `build lunity luajit`
+
+### LuaJIT on Windows with MinGW
+
+1. Download [LuaJIT](http://luajit.org/download.html)
+2. Extract the ZIP file to `lib/luajit`.
+3. In command prompt go to `lib/luajit/src` and run `mingw32-make`.
+4. That will create lua51.lib and lua51.dll in `lib/luajit/src` directory.
+5. Then build *Lunity* with `build lunity luajit gcc`
+
 # TODO
 
 A list of tasks I keep with important changes planned to appear in upcoming releases.
@@ -241,15 +287,14 @@ A list of tasks I keep with important changes planned to appear in upcoming rele
 - Tilemaps.
 - `draw_frame()`
 - `draw_circle()`
-- `draw_line()`
 - Limit the number of audio voices.
 - Palette rotations, shifting, etc.
 - Experiment with a reasonable replacement of `StretchDIBits` to gain more performance.
 - Animated GIF recording. Will need to solve the previous issues with it being too slow. Probably first record the frames to memory, then process the gif in a separate thread.
 
-# Outstanding (involuntary) contributions
+# Contributors
 
-- [@d7samurai](https://twitter.com/d7samurai) - I use a lot of his ideas and pieces of code reworked from C++ to C.
+- [@d7samurai](https://twitter.com/d7samurai) - Along with DirectX 10 support, I use a lot of his ideas and pieces of code.
 
 # Thank you
  
