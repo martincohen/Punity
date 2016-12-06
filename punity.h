@@ -31,12 +31,6 @@
  * - Switched to single file `punity.h`.
  * - Removed the need for `config.h`.
  *
- * - Added Lua runner `Lunity`. (still work-in-progress)
- *   - Made for fast prototyping and jamming.
- *   - Depends on `lib/lua51`
- *   - Build it with `build lunity`
- *   - Change philosophy of some implementations to support dynamic memory allocation.
- *
  * - Added GIF recording.
  *   - Depends on `lib/gifw.h`.
  *   - Forced to 30fps. (even if Punity runs on 60fps)
@@ -46,14 +40,13 @@
  *       will take longer than 30 or 60fps (depending on your settings).
  *
  * - Added SDL runtime. (still work-in-progress)
- *   - Depends on `lib/punity-sdl.c` and `lib/SDL.c`.
+ *   - Depends on `lib/punity-sdl.c`.
  *   - `SDL2.dll` has to be distributed with the executable.
  *   - Build with `build sdl`
- *   - Build Lunity with `build sdl lunity`
  *    - Reorganized `main()`, better platform code separation.
  *
  * - Added entity and collision system.
- *   - Customizable `Entity` struct with `PUN_DEFINE_ENTITY_BEGIN/END`.
+ *   - Customizable `SceneEntity` struct with `PUN_SCENE_ENTITY_CUSTOM`.
  *   - Uses `SpatialHash` for entities.
  *   - Uses fixed tile map for static colliders.
  *     - Much faster than adding each tile to `SpatialHash`.
@@ -66,13 +59,13 @@
  *    - Now able to build different targets than `main.c` (i.e. build examples/example-platformer)
  *    - Arguments can be in any order.
  *
- * - Added PUN_SIXTY to set the default rate to 60fps instead of default 30fps.
+ * - Added PUNITY_OPENGL_30FPS to disable forcing framerate to 30fps.
  * - Removed DirectX support (moved to a separate module that will be optional in the future).
  *   - This change has been made to keep the runtime layer in `punity.h` file as simple as possible.
  * - Changed `init` signature to return `int` to be able to exit in case of error.
  * - Changed `Bank` now reserves given capacity and commits when needed.
  * - Changed `file_read` now takes optional `bank` pointer to store the file, if it's 0 then it'll use malloc()
- * - Changed COLOR_CHANNELS to PUN_COLOR_CHANNELS
+ * - Changed COLOR_CHANNELS to PUNITY_COLOR_CHANNELS
  * - Added `configure` callback now added to do runtime configuration for some options (see CoreConfig)
  * - Added `window_title(title)` to set the title of the window dynamically.
  * - Added `window_fullscreen_toggle()` to maximize the window to fullscreen and back.
@@ -140,94 +133,94 @@
 // #include <limits.h>
 
 #if _DEBUG
-#define PUN_DEBUG 1
+#define PUNITY_DEBUG 1
 #else
-#define PUN_DEBUG 0
-#endif
-
-// Enables 60fps instead of 30fps.
-//
-#ifndef PUN_SIXTY
-#define PUN_SIXTY 0
+#define PUNITY_DEBUG 0
 #endif
 
 // On Windows, enables external console window for printf output.
 //
-#ifndef PUN_CONSOLE
-#define PUN_CONSOLE 0
+#ifndef PUNITY_CONSOLE
+#define PUNITY_CONSOLE 0
 #endif
 
 // Only implements the Punity's functions and types.
 // Useful for making tools that use Punity's library.
 //
-#ifndef PUN_LIB
-#define PUN_LIB 0
+#ifndef PUNITY_LIB
+#define PUNITY_LIB 0
 #endif
 
 // This makes all "LOG" calls to output into Visual Studio's Ouput
 // through OutputDebugStringA() API.
 //
-#ifndef PUN_DEBUG_MSVC
-#define PUN_DEBUG_MSVC 0
+#ifndef PUNITY_DEBUG_MSVC
+#define PUNITY_DEBUG_MSVC 0
 #endif
 
 // Enables/disables SIMD acceleration for bitmap drawing.
 // Speeds up drawing from 2x up to 16x.
 // Larger bitmap, more acceleration.
 //
-#ifndef PUN_SIMD
-#define PUN_SIMD 1
+#ifndef PUNITY_SIMD
+#define PUNITY_SIMD 1
 #endif
 
 // Enables/disables OpenGL blitting.
 // Minimal OpenGL loader provided.
 // Thanks to @ApoorvaJ.
 //
-#ifndef PUN_OPENGL
-#define PUN_OPENGL 1
+#ifndef PUNITY_OPENGL
+#define PUNITY_OPENGL 1
+#endif
+
+// Enables/disables forcing of 30fps when OpenGL is used.
+//
+#ifndef PUNITY_OPENGL_30FPS
+#define PUNITY_OPENGL_30FPS 1
 #endif
 
 // Enables/disables GIF recorder.
 // Use F11 to begin GIF recording, and F11 to stop and output the
 // GIF file to disk.
-// Customize the shortcut with PUN_FEATURE_RECORDER_KEY macro.
+// Customize the shortcut with PUNITY_FEATURE_RECORDER_KEY macro.
 // Uses lib/gifw.h.
 //
-#ifndef PUN_FEATURE_RECORDER
-#define PUN_FEATURE_RECORDER 1
+#ifndef PUNITY_FEATURE_RECORDER
+#define PUNITY_FEATURE_RECORDER 1
 #endif
 
 // Can be set to any KEY_* constant, it is automatically used for recording.
 // If set to 0, the automatic key binding is removed so you'll have to
 // implement it yourself.
 //
-#ifndef PUN_FEATURE_RECORDER_KEY
-#define PUN_FEATURE_RECORDER_KEY KEY_F11
+#ifndef PUNITY_FEATURE_RECORDER_KEY
+#define PUNITY_FEATURE_RECORDER_KEY KEY_F11
 #endif
 
 // Scale used for recording.
 //
-#ifndef PUN_FEATURE_RECORDER_SCALE
-#define PUN_FEATURE_RECORDER_SCALE 2
+#ifndef PUNITY_FEATURE_RECORDER_SCALE
+#define PUNITY_FEATURE_RECORDER_SCALE 2
 #endif
 
 // Maximum number of bytes available in `CORE->stack` bank.
 //
-#ifndef PUN_STACK_CAPACITY
-#define PUN_STACK_CAPACITY megabytes(16)
+#ifndef PUNITY_STACK_CAPACITY
+#define PUNITY_STACK_CAPACITY megabytes(16)
 #endif
 
 // Maximum number of bytes available in `CORE->storage` bank.
 //
-#ifndef PUN_STORAGE_CAPACITY
-#define PUN_STORAGE_CAPACITY megabytes(16)
+#ifndef PUNITY_STORAGE_CAPACITY
+#define PUNITY_STORAGE_CAPACITY megabytes(16)
 #endif
 
 // When 1, `CORE->key_text` is will be a UTF-32 string.
 // However for most of use cases, `char` would do.
 //
-#ifndef PUN_TEXT_UNICODE
-#define PUN_TEXT_UNICODE 0
+#ifndef PUNITY_TEXT_UNICODE
+#define PUNITY_TEXT_UNICODE 0
 #endif
 
 // How many items to reserve for the draw list.
@@ -235,48 +228,48 @@
 // system allocates more space for next frame,
 // if current frame's allocation was not enough.
 //
-#ifndef PUN_DRAW_LIST_RESERVE
-#define PUN_DRAW_LIST_RESERVE 4096
+#ifndef PUNITY_DRAW_LIST_RESERVE
+#define PUNITY_DRAW_LIST_RESERVE 4096
 #endif
 
 // Enables integration with `stb_image.h` library.
 // Allows for loading common image formats.
 //
-#ifndef PUN_USE_STB_IMAGE
-#define PUN_USE_STB_IMAGE 1
+#ifndef PUNITY_USE_STB_IMAGE
+#define PUNITY_USE_STB_IMAGE 1
 #endif
 
 // Enables integration with `stb_vorbis.c` library.
 // Allows for using `.ogg` file format for audio.
 //
-#ifndef PUN_USE_STB_VORBIS
-#define PUN_USE_STB_VORBIS 1
+#ifndef PUNITY_USE_STB_VORBIS
+#define PUNITY_USE_STB_VORBIS 1
 #endif
 
 // Sample rate used internally in Punity.
 // This rate is requested from the system (it's the most common one).
 // All audio is resampled to this frequency.
 //
-#ifndef PUN_SOUND_SAMPLE_RATE
-#define PUN_SOUND_SAMPLE_RATE 48000
+#ifndef PUNITY_SOUND_SAMPLE_RATE
+#define PUNITY_SOUND_SAMPLE_RATE 48000
 #endif
 
 // FileWatcher API.
 //
-#ifndef PUN_FEATURE_FILEWATCHER
-#define PUN_FEATURE_FILEWATCHER 0
+#ifndef PUNITY_FEATURE_FILEWATCHER
+#define PUNITY_FEATURE_FILEWATCHER 0
 #endif
 
 // World API.
 //
-#ifndef PUN_FEATURE_WORLD
-#define PUN_FEATURE_WORLD 0
+#ifndef PUNITY_FEATURE_WORLD
+#define PUNITY_FEATURE_WORLD 0
 #endif
 
 // Platform specific color channel ordering.
 // As more platforms are available, this will be set automatically per platform.
 //
-#define PUN_COLOR_CHANNELS b, g, r, a
+#define PUNITY_COLOR_CHANNELS b, g, r, a
 
 typedef unsigned int uint;
 typedef uint8_t   u8;
@@ -572,7 +565,7 @@ enum
 typedef union
 {
     struct {
-        u8 PUN_COLOR_CHANNELS;
+        u8 PUNITY_COLOR_CHANNELS;
     };
     u32 rgba;
 }
@@ -720,13 +713,13 @@ void bitmap_clear(Bitmap *bitmap, u8 color);
 
 // Loads bitmap from an image file.
 // This only works if USE_STB_IMAGE is defined.
-#if PUN_USE_STB_IMAGE
+#if PUNITY_USE_STB_IMAGE
 void bitmap_load(Bitmap *bitmap, const char *path, int palette_range);
 void bitmap_load_resource(Bitmap *bitmap, const char *resource_name, int palette_range);
 void bitmap_load_resource_ex(Bank *bank, Bitmap *bitmap, const char *resource_name, int palette_range);
 #endif
 
-#if PUN_USE_STB_IMAGE
+#if PUNITY_USE_STB_IMAGE
 void font_load_resource(Font *bitmap, const char *resource_name, i32 char_width, i32 char_height);
 #endif
 
@@ -761,12 +754,18 @@ void frame_draw(Rect r, u8 frame_color, int frame_edges, u8 fill_color);
 // Draws a bitmap to the canvas.
 void bitmap_draw_single_(Bitmap *bitmap, i32 x, i32 y, i32 pivot_x, i32 pivot_y, Rect *bitmap_rect);
 
-#if PUN_SIMD
+#if PUNITY_SIMD
 void bitmap_draw_simd_(Bitmap *bitmap, i32 x, i32 y, i32 pivot_x, i32 pivot_y, Rect *bitmap_rect);
 #define bitmap_draw bitmap_draw_simd_
 #else
 #define bitmap_draw bitmap_draw_single_
 #endif
+
+// Returns a tile rectangle in the bitmap based on `index`.
+Rect tile_get(Bitmap *bitmap, i32 index);
+
+// Draws a tile from bitmap (utilizing Bitmap's tile_width/tile_height).
+void tile_draw(Bitmap *bitmap, i32 x, i32 y, i32 index);
 
 // Copies bitmap from `source` to `destination`
 void bitmap_copy(Bitmap *destination, Bitmap *source);
@@ -877,6 +876,13 @@ DrawListItem *text_draw_push(const char *text, i32 x, i32 y, u8 color, i32 z);
 DrawListItem *frame_draw_push(Rect r, u8 frame_color, int frame_edges, u8 fill_color, i32 z);
 DrawListItem *rect_draw_push(Rect rect, u8 color, i32 z);
 DrawListItem *line_draw_push(i32 x1, i32 y1, i32 x2, i32 y2, u8 color, i32 z);
+DrawListItem *tile_draw_push(Bitmap *bitmap, i32 x, i32 y, i32 index, i32 z);
+
+//
+// Debug
+//
+
+void debug_palette(i32 x, i32 y, i32 z);
 
 //
 // Sound
@@ -905,7 +911,7 @@ Sound;
 
 void sound_play(Sound *sound);
 
-#if PUN_USE_STB_VORBIS
+#if PUNITY_USE_STB_VORBIS
 void sound_load(Sound *sound, const char *path);
 void sound_load_resource(Sound *sound, const char *resource_name);
 #endif
@@ -928,7 +934,7 @@ void *resource_get(const char *name, size_t *size);
 // GIF recording.
 //
 
-#if PUN_FEATURE_RECORDER
+#if PUNITY_FEATURE_RECORDER
 
 #include <gifw.h>
 
@@ -958,7 +964,7 @@ typedef struct Recorder_ {
     size_t frames_count;
 } Recorder;
 
-#endif // PUN_FEATURE_RECORDER
+#endif // PUNITY_FEATURE_RECORDER
 
 void record_begin();
 void record_end();
@@ -968,7 +974,7 @@ void record_toggle();
 // File watcher.
 //
 
-#if PUN_FEATURE_FILEWATCHER
+#if PUNITY_FEATURE_FILEWATCHER
 
 #include <sys/stat.h>
 #include <time.h>
@@ -995,9 +1001,9 @@ typedef struct FileWatcher_ {
 }
 FileWatcher;
 
-#endif // PUN_FEATURE_FILEWATCHER
+#endif // PUNITY_FEATURE_FILEWATCHER
 
-#if PUN_FEATURE_WORLD
+#if PUNITY_FEATURE_WORLD
 
 //
 // State
@@ -1084,28 +1090,28 @@ SpatialCell *spatialhash_get_cell(SpatialHash *H, int x, int y);
 // Collider
 //
 
-typedef struct WorldTile_ SceneTile;
-typedef struct Entity_ Entity;
+typedef struct SceneTile_ SceneTile;
+typedef struct SceneEntity_ SceneEntity;
 
-#define PUN_DEFINE_ENTITY_BEGIN \
-typedef struct Entity_ { \
-    Rect box; \
-    i32 flags; \
-    f32 rx, ry; \
-    i32 layer; \
+typedef struct SceneEntity_ {
+    Rect box;
+    i32 flags;
+    f32 rx, ry;
+    i32 layer;
     void *next;
+#ifdef PUN_SCENE_ENTITY_CUSTOM
+    PUN_SCENE_ENTITY_CUSTOM
+#endif
+} SceneEntity;
 
-#define PUN_DEFINE_ENTITY_END \
-    } Entity;
-
-#define PUN_DEFINE_TILE_BEGIN \
-    typedef struct WorldTile_\
-    { \
-        u8 flags; \
-        i32 layer;
- 
-#define PUN_DEFINE_TILE_END \
-    } SceneTile;
+typedef struct SceneTile_
+{
+    u8 flags;
+    i32 layer;
+#ifdef PUN_SCENE_TILE_CUSTOM
+    PUN_SCENE_TILE_CUSTOM
+#endif
+} SceneTile;
 
 enum {
     SceneItem_None = 0,
@@ -1116,7 +1122,7 @@ enum {
 typedef struct SceneItem_ {
     i32 type;
     union {
-        Entity *entity;
+        SceneEntity *entity;
         SceneTile *tile;
         void *ptr;
     };
@@ -1126,7 +1132,7 @@ typedef struct
 {
     i32 type;
     // Bank *bank;
-    Entity *A;
+    SceneEntity *A;
     SceneItem B;
     i32 mx, my;
     Rect box;
@@ -1153,8 +1159,8 @@ typedef struct Scene_
     // TODO: Rename to entities.
     Deque deque_entities;
 
-    Entity *entities;
-    Entity *entities_pool;
+    SceneEntity *entities;
+    SceneEntity *entities_pool;
     i32 entities_count;
     i32 cell_size;
     SpatialHash hash;
@@ -1173,19 +1179,20 @@ void scene_clear(Scene *scene);
 #define SCENE_FOREACH_CALLBACK(name) bool name(Scene *scene, Rect *cast_box, Rect *item_box, i32 item_flags, SceneItem *item, void *data)
 typedef SCENE_FOREACH_CALLBACK(SceneForEachCallbackF);
 bool scene_foreach(Scene *scene, Rect rect, SceneForEachCallbackF *callback, void *data, i32 layer);
-void scene_debug_cells(Scene *scene, u8 color);
+void scene_debug_tilemap(Scene *scene, u8 color, i32 z);
+void scene_debug_cells(Scene *scene, u8 color, i32 z);
 
 extern inline SceneTile *scene_tile(Scene *scene, i32 x, i32 y);
 
-Entity *scene_entity_add(Scene *scene, Rect box, i32 layer);
-void scene_entity_remove(Scene *scene, Entity *entity);
+SceneEntity *scene_entity_add(Scene *scene, Rect box, i32 layer);
+void scene_entity_remove(Scene *scene, SceneEntity *entity);
 
-bool scene_entity_cast_x(Scene *scene, Entity *entity, f32 dx, Collision *C);
-bool scene_entity_cast_y(Scene *scene, Entity *entity, f32 dy, Collision *C);
-bool scene_entity_move_x(Scene *scene, Entity *entity, f32 dx, Collision *C);
-bool scene_entity_move_y(Scene *scene, Entity *entity, f32 dy, Collision *C);
+bool scene_entity_cast_x(Scene *scene, SceneEntity *entity, f32 dx, Collision *C);
+bool scene_entity_cast_y(Scene *scene, SceneEntity *entity, f32 dy, Collision *C);
+bool scene_entity_move_x(Scene *scene, SceneEntity *entity, f32 dx, Collision *C);
+bool scene_entity_move_y(Scene *scene, SceneEntity *entity, f32 dy, Collision *C);
 
-#endif // PUN_FEATURE_WORLD
+#endif // PUNITY_FEATURE_WORLD
 
 //
 // Core
@@ -1261,7 +1268,7 @@ typedef struct
     f32 mouse_y;
 
     // String holding text that has been entered for the current frame.
-#if PUN_TEXT_UNICODE
+#if PUNITY_TEXT_UNICODE
     u32 key_text[8];
 #else
     char key_text[8];
@@ -1293,7 +1300,7 @@ typedef struct
     PUN_SHADER_TYPE *shader;
 #endif
 
-#if PUN_FEATURE_FILEWATCHER
+#if PUNITY_FEATURE_FILEWATCHER
     FileWatcher file_watcher;
 #endif
 
@@ -1315,7 +1322,7 @@ void log_(const char *function, const char *file, int line, const char *format, 
             (panic_(message, #expression, __FUNCTION__, __FILE__, __LINE__, __VA_ARGS__), 0) )
 
 #define ASSERT(expression) ASSERT_MESSAGE(expression, #expression)
-#ifdef PUN_DEBUG
+#ifdef PUNITY_DEBUG
 #define ASSERT_DEBUG_MESSAGE ASSERT_MESSAGE
 #define ASSERT_DEBUG ASSERT
 #else
@@ -1479,31 +1486,25 @@ extern KeyMapping KEY_MAPPING[];
 #include <dsound.h>
 #endif
 
-#if PUN_USE_STB_IMAGE
+#if PUNITY_USE_STB_IMAGE
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 #endif
 
-#if PUN_USE_STB_VORBIS && !PUN_TARGET_LUA
+#if PUNITY_USE_STB_VORBIS && !PUN_TARGET_LUA
 #include <stb_vorbis.c>
 #undef R
 #undef L
 #undef C
 #endif
 
-#if PUN_FEATURE_RECORDER
+#if PUNITY_FEATURE_RECORDER
 #define GIFW_IMPLEMENTATION
 #include <gifw.h>
 #endif
 
 #define PUNP_SOUND_DEFAULT_SOUND_VOLUME 0.9f
 #define PUNP_SOUND_DEFAULT_MASTER_VOLUME 0.9f
-
-#if PUN_SIXTY
-#define PUNP_FRAME_TIME    (1.0/60.0)
-#else
-#define PUNP_FRAME_TIME    (1.0/30.0)
-#endif
 
 // Set to 1 to output a audio.buf file from the mixer.
 #define PUNP_SOUND_CHANNELS 2
@@ -1519,7 +1520,7 @@ KeyMapping KEY_MAPPING[] = {
 };
 #undef PUN_KEY_MAPPING_ENTRY
 
-#if PUN_SIMD
+#if PUNITY_SIMD
 
 struct
 {
@@ -1585,7 +1586,7 @@ panic_(const char *message, const char *description, const char *function, const
 void
 log_(const char *function, const char *file, int line, const char *format, ...)
 {
-#if PUN_DEBUG_MSVC
+#if PUNITY_DEBUG_MSVC
     char m[256];
     
     va_list args;
@@ -2324,9 +2325,11 @@ void
 palette_init(Palette *palette)
 {
     memset(palette, 0, sizeof(Palette));
-    palette->ranges[0].begin = 0;
+    
+    // Skip the 0th color, as that's reserved for transparency.
+    palette->ranges[0].begin = 1;
     palette->ranges[0].end   = 0xFF;
-    palette->ranges[0].it    = 0;
+    palette->ranges[0].it    = 1;
     palette->ranges_count = 1;
 }
 
@@ -2404,7 +2407,7 @@ palette_color_add(Palette *palette, Color color, int range)
     if (r->it == r->end) {
         return -1;
     }
-    printf("Added color (%d, %d, %d, %d) to range %d at index %d.\n",
+    LOG("Added color (%d, %d, %d, %d) to range %d at index %d.\n",
         color.r, color.g, color.b, color.a, range,
         r->it);
     palette->colors[r->it] = color;
@@ -2798,6 +2801,13 @@ bitmap_draw_push(Bitmap *bitmap, i32 x, i32 y, i32 pivot_x, i32 pivot_y, Rect *b
 }
 
 DrawListItem *
+tile_draw_push(Bitmap *bitmap, i32 x, i32 y, i32 index, i32 z)
+{
+    Rect rect = tile_get(bitmap, index);
+    return bitmap_draw_push(bitmap, x, y, 0, 0, &rect, z);
+}
+
+DrawListItem *
 text_draw_push(const char *text, i32 x, i32 y, u8 color, i32 z)
 {
     DrawListItem *item = drawlist_push_(CORE->draw_list, z, DrawListItemType_Text);
@@ -2812,7 +2822,19 @@ text_draw_push(const char *text, i32 x, i32 y, u8 color, i32 z)
     return item;
 }
 
+//
+// Debug
+//
 
+void
+debug_palette(i32 x, i32 y, i32 z)
+{
+    for (int y = 0; y != 16; ++y) {
+        for (int x = 0; x != 16; ++x) {
+            rect_draw_push(rect_make_size(x * 4, y * 4, 4, 4), x + y * 16, z);
+        }
+    }
+}
 
 //
 // V2f
@@ -3097,7 +3119,7 @@ frame_draw(Rect r, u8 frame_color, int frame_edges, u8 fill_color)
     }
 }
 
-#if PUN_SIMD
+#if PUNITY_SIMD
 // https://software.intel.com/sites/landingpage/IntrinsicsGuide/#techs=SSE,SSE2,SSE3
 // TODO: Use _mm_loadu_si128((__m128i*)(dit));?
 
@@ -3392,6 +3414,28 @@ bitmap_draw_single_(Bitmap *src_bitmap, i32 x, i32 y, i32 pivot_x, i32 pivot_y, 
     }
 }
 
+Rect
+tile_get(Bitmap *bitmap, i32 index)
+{
+    ASSERT_MESSAGE(bitmap->tile_width,  "Bitmap does not have a `tile_width` set.");
+    ASSERT_MESSAGE(bitmap->tile_height, "Bitmap does not have a `tile_height` set.");
+
+    i32 cols = bitmap->width / bitmap->tile_width;
+    Rect rect = rect_make_size(
+        (index % cols) * bitmap->tile_width,
+        (index / cols) * bitmap->tile_height,
+        bitmap->tile_width, bitmap->tile_height);
+
+    return rect;
+}
+
+void
+tile_draw(Bitmap *bitmap, i32 x, i32 y, i32 index)
+{
+    Rect rect = tile_get(bitmap, index);
+    bitmap_draw(bitmap, x, y, 0, 0, &rect);
+}
+
 void
 bitmap_copy(Bitmap *destination, Bitmap *source)
 {
@@ -3610,7 +3654,7 @@ bitmap_clear(Bitmap *bitmap, u8 color)
     memset(bitmap->pixels, color, bitmap->width * bitmap->height);
 }
 
-#if PUN_USE_STB_IMAGE
+#if PUNITY_USE_STB_IMAGE
 
 void
 bitmap_load(Bitmap *bitmap, const char *path, int palette_range)
@@ -3666,7 +3710,7 @@ font_load_resource(Font *font, const char *resource_name, i32 char_width, i32 ch
 
 #endif
 
-#if PUN_FEATURE_FILEWATCHER
+#if PUNITY_FEATURE_FILEWATCHER
 
 void
 filewatcher_init()
@@ -3746,7 +3790,7 @@ filewatcher_step()
     }
 }
 
-#endif // PUN_FEATURE_FILEWATCHER
+#endif // PUNITY_FEATURE_FILEWATCHER
 
 //
 // Keys
@@ -3762,7 +3806,7 @@ key_clear()
 // World
 //
 
-#if PUN_FEATURE_WORLD
+#if PUNITY_FEATURE_WORLD
 
 //
 // State
@@ -3805,7 +3849,7 @@ scene_init(Scene *S, i32 tile_size, i32 tile_width, i32 tile_height, i32 cell_si
 
     // TODO: Use pow 2 bucket sizes and do & instead of %?
     spatialhash_init(&S->hash, 5003);
-    deque_init(&S->deque_entities, sizeof(Entity) * 256);
+    deque_init(&S->deque_entities, sizeof(SceneEntity) * 256);
     // deque_init(&S->deque_tiles, sizeof(WorldTileBlock) * 16);
 
     if (tile_size)
@@ -3847,38 +3891,38 @@ scene_tile(Scene *S, i32 x, i32 y)
     return &S->tiles[x + (y * S->tile_rect.max_x)];
 }
 
-// void
-// world_debug_tilemap(u8 color)
-// {
-//     SceneTile *tile = CORE->world.tiles;
-//     int x, y;
-//     for (y = 0; y != CORE->world.tile_rect.max_y; ++y) {
-//         for (x = 0; x != CORE->world.tile_rect.max_x; ++x) {
-//             if (tile->flags) {
-//                 frame_draw_push(rect_make_size(
-//                     x * CORE->world.tile_size,
-//                     y * CORE->world.tile_size,
-//                     CORE->world.tile_size,
-//                     CORE->world.tile_size
-//                 ), color, tile->flags, 0, 9999);
-//             }
-//             tile++;
-//         }
-//     }
-// }
+void
+scene_debug_tilemap(Scene *S, u8 color, i32 z)
+{
+    SceneTile *tile = S->tiles;
+    int x, y;
+    for (y = 0; y != S->tile_rect.max_y; ++y) {
+        for (x = 0; x != S->tile_rect.max_x; ++x) {
+            if (tile->flags) {
+                frame_draw_push(rect_make_size(
+                    x * S->tile_size,
+                    y * S->tile_size,
+                    S->tile_size,
+                    S->tile_size
+                ), color, tile->flags, 0, z);
+            }
+            tile++;
+        }
+    }
+}
 
 void
-scene_debug_cells(Scene *S, u8 color)
+scene_debug_cells(Scene *S, u8 color, i32 z)
 {
     int x, y;
     SpatialCell *cell;
 
     for (x = 0; x <= (CORE->window.width / S->cell_size); ++x) {
-        rect_draw(rect_make(x * S->cell_size, 0, (x * S->cell_size) + 1, CORE->window.height), color);
+        rect_draw_push(rect_make(x * S->cell_size, 0, (x * S->cell_size) + 1, CORE->window.height), color, z);
     }
 
     for (y = 0; y <= (CORE->window.height / S->cell_size); ++y) {
-        rect_draw(rect_make(0, (y * S->cell_size), CORE->window.width, (y * S->cell_size) + 1), color);
+        rect_draw_push(rect_make(0, (y * S->cell_size), CORE->window.width, (y * S->cell_size) + 1), color, z);
     }
 
     char n[16];
@@ -3890,7 +3934,7 @@ scene_debug_cells(Scene *S, u8 color)
             } else {
                 *n = 0;
             }
-            text_draw(n, x * S->cell_size + 2, y * S->cell_size + 2, color);
+            text_draw_push(n, x * S->cell_size + 2, y * S->cell_size + 2, color, z);
         }
     }
 }
@@ -3904,9 +3948,9 @@ scene_foreach(Scene *S, Rect rect, SceneForEachCallbackF *callback, void *data, 
 
     SceneTile *tile;
     SpatialCell *cell;
-    Entity **entity;
+    SceneEntity **entity;
     Rect box;
-    Entity *tile_entity;
+    SceneEntity *tile_entity;
 
     SceneItem item;
     if (S->tiles)
@@ -3936,7 +3980,7 @@ scene_foreach(Scene *S, Rect rect, SceneForEachCallbackF *callback, void *data, 
         for (cx = range.min_x; cx != range.max_x; ++cx) {
             cell = spatialhash_get_cell(&S->hash, cx, cy);
             while (cell && (cell->x == cx && cell->y == cy)) {
-                entity = (Entity**)cell->items;
+                entity = (SceneEntity**)cell->items;
                 for (ci = 0; ci < cell->items_count; ++ci, ++entity)
                 {
                     item.entity = *entity;
@@ -3953,7 +3997,7 @@ scene_foreach(Scene *S, Rect rect, SceneForEachCallbackF *callback, void *data, 
 }
 
 static inline bool
-scene_entity_cast_f_xy_(Entity *A, SceneItem *B, i32 flags,
+scene_entity_cast_f_xy_(SceneEntity *A, SceneItem *B, i32 flags,
     Collision *C,
     i32 a_min, i32 a_max,
     i32 b_min, i32 b_max,
@@ -4019,7 +4063,7 @@ SCENE_FOREACH_CALLBACK(scene_entity_cast_f_y_)
 }
 
 void
-scene_entity_move_(Scene *S, Entity *A, i32 dx, i32 dy)
+scene_entity_move_(Scene *S, SceneEntity *A, i32 dx, i32 dy)
 {
     Rect old_box = A->box;
     rect_tr(&A->box, dx, dy);
@@ -4039,7 +4083,7 @@ rect_dilate_(Rect rect, i32 mx, i32 my) {
 
 // Returns false if entity cannot move full delta (hits an obstacle).
 static inline bool
-scene_entity_cast_xy_(Scene *S, Entity *A, f32 dx, f32 dy, Collision *C, SceneForEachCallbackF *f)
+scene_entity_cast_xy_(Scene *S, SceneEntity *A, f32 dx, f32 dy, Collision *C, SceneForEachCallbackF *f)
 {
     memset(C, 0, sizeof(Collision));
 
@@ -4058,21 +4102,21 @@ scene_entity_cast_xy_(Scene *S, Entity *A, f32 dx, f32 dy, Collision *C, SceneFo
 }
 
 bool
-scene_entity_cast_x(Scene *S, Entity *A, f32 dx, Collision *C)
+scene_entity_cast_x(Scene *S, SceneEntity *A, f32 dx, Collision *C)
 {
     ASSERT(S->initialized);
     return scene_entity_cast_xy_(S, A, dx, 0, C, scene_entity_cast_f_x_);
 }
 
 bool
-scene_entity_cast_y(Scene *S, Entity *A, f32 dy, Collision *C)
+scene_entity_cast_y(Scene *S, SceneEntity *A, f32 dy, Collision *C)
 {
     ASSERT(S->initialized);
     return scene_entity_cast_xy_(S, A, 0, dy, C, scene_entity_cast_f_y_);
 }
 
 bool
-scene_entity_move_x(Scene *S, Entity *A, f32 dx, Collision *C)
+scene_entity_move_x(Scene *S, SceneEntity *A, f32 dx, Collision *C)
 {
     ASSERT(S->initialized);
 
@@ -4090,7 +4134,7 @@ scene_entity_move_x(Scene *S, Entity *A, f32 dx, Collision *C)
 }
 
 bool
-scene_entity_move_y(Scene *S, Entity *A, f32 dy, Collision *C)
+scene_entity_move_y(Scene *S, SceneEntity *A, f32 dy, Collision *C)
 {
     ASSERT(S->initialized);
 
@@ -4108,19 +4152,19 @@ scene_entity_move_y(Scene *S, Entity *A, f32 dy, Collision *C)
     return r;
 }
 
-Entity *
+SceneEntity *
 scene_entity_add(Scene *S, Rect box, i32 layer)
 {
     ASSERT(S->initialized);
 
     // Allocate from pool.
-    Entity *entity = S->entities_pool;
+    SceneEntity *entity = S->entities_pool;
     if (entity) {
         S->entities_pool = entity->next;
     } else {
-        entity = deque_push_t(&S->deque_entities, Entity);
+        entity = deque_push_t(&S->deque_entities, SceneEntity);
     }
-    memset(entity, 0, sizeof(Entity));
+    memset(entity, 0, sizeof(SceneEntity));
 
     entity->next = S->entities;
     S->entities = entity;
@@ -4136,15 +4180,15 @@ scene_entity_add(Scene *S, Rect box, i32 layer)
 }
 
 void
-scene_entity_remove(Scene *S, Entity *entity)
+scene_entity_remove(Scene *S, SceneEntity *entity)
 {
     if (entity->flags & EntityFlag_Removed) {
-        ASSERT_MESSAGE(0, "Entity was already removed.");
+        ASSERT_MESSAGE(0, "SceneEntity was already removed.");
         return;
     }
 
     bool removed = false;
-    Entity *next = S->entities;
+    SceneEntity *next = S->entities;
     if (next == entity) {
         S->entities = entity->next;
         removed = true;
@@ -4155,7 +4199,7 @@ scene_entity_remove(Scene *S, Entity *entity)
                 removed = true;
                 break;
             }
-            next = (Entity*)next->next;
+            next = (SceneEntity*)next->next;
         }
     }
     ASSERT(removed);
@@ -4359,13 +4403,13 @@ spatialhash_get_cell(SpatialHash *H, int x, int y)
     return 0;
 }
 
-#endif // PUN_FEATURE_WORLD
+#endif // PUNITY_FEATURE_WORLD
 
 //
 // Sound
 //
 
-#if PUN_USE_STB_VORBIS
+#if PUNITY_USE_STB_VORBIS
 
 static void
 sound_load_stbv_(Sound *sound, stb_vorbis *stream)
@@ -4435,7 +4479,7 @@ sound_load_resource(Sound *sound, const char *resource_name)
     memcpy(sound->name, resource_name, size);
 }
 
-#endif // PUN_USE_STB_VORBIS
+#endif // PUNITY_USE_STB_VORBIS
 
 typedef struct PunPAudioSource
 {
@@ -4473,7 +4517,7 @@ sound_play(Sound *sound)
         memset(source, 0, sizeof(PunPAudioSource));
         sound->sources_count++;
         source->sound = sound;
-        source->rate = (f32)sound->rate / (f32)PUN_SOUND_SAMPLE_RATE;
+        source->rate = (f32)sound->rate / (f32)PUNITY_SOUND_SAMPLE_RATE;
         source->next = punp_audio_source_playback;
         punp_audio_source_playback = source;
     }
@@ -4608,7 +4652,7 @@ loop:;
 //
 //
 
-#if PUN_LIB == 0
+#if PUNITY_LIB == 0
 
 // Some platform tests to make sure some special tricks in the lib work correctly.
 void
@@ -4634,7 +4678,7 @@ punity_test()
 int
 punity_init(const char *args)
 {
-#if PUN_CONSOLE
+#if PUNITY_CONSOLE
     // printf("Debug build...");
     // if (AttachConsole(ATTACH_PARENT_PROCESS) || AllocConsole()) {
     if (AttachConsole(ATTACH_PARENT_PROCESS) || AllocConsole()) {
@@ -4644,11 +4688,11 @@ punity_init(const char *args)
 #else
     // printf("Release build...");
     // FreeConsole();
-   // freopen("CONOUT$", "w", stdout);
-   // freopen("CONOUT$", "w", stderr);
+    // freopen("CONOUT$", "w", stdout);
+    // freopen("CONOUT$", "w", stderr);
 #endif
 
-#if PUN_SIMD
+#if PUNITY_SIMD
     simd_init__();
 #endif
 
@@ -4679,32 +4723,31 @@ punity_init(const char *args)
     CORE->stack = &s_stack;
     CORE->storage = &s_storage;
 
-    bank_init(CORE->stack, PUN_STACK_CAPACITY);
-    bank_init(CORE->storage, PUN_STORAGE_CAPACITY);
-
-    // TODO: Push canvas to storage? Storage is not initialized yet, so we cannot push it there.
-    static Bitmap s_canvas_bitmap = {0};
-    CORE->canvas.bitmap = &s_canvas_bitmap;
-    bitmap_init(CORE->canvas.bitmap, CORE->window.width, CORE->window.height, 0, 0, 0);
-    bitmap_clear(CORE->canvas.bitmap, PUN_COLOR_TRANSPARENT);
-    CORE->window.buffer = CORE->canvas.bitmap->pixels;
-    clip_reset();
+    bank_init(CORE->stack, PUNITY_STACK_CAPACITY);
+    bank_init(CORE->storage, PUNITY_STORAGE_CAPACITY);
 
     static DrawList s_draw_list = {0};
     CORE->draw_list = &s_draw_list;
-    drawlist_init(CORE->draw_list, PUN_DRAW_LIST_RESERVE);
+    drawlist_init(CORE->draw_list, PUNITY_DRAW_LIST_RESERVE);
 
     CORE->audio_volume = PUNP_SOUND_DEFAULT_MASTER_VOLUME;
 
     CORE->background = color_make(0x00, 0x00, 0x00, 0x00);
 
-#if PUN_FEATURE_FILEWATCHER
+#if PUNITY_FEATURE_FILEWATCHER
     filewatcher_init();
 #endif
 
     if (!init()) {
         return 1;
     }
+
+    static Bitmap s_canvas_bitmap = { 0 };
+    CORE->canvas.bitmap = &s_canvas_bitmap;
+    bitmap_init(CORE->canvas.bitmap, CORE->window.width, CORE->window.height, 0, 0, 0);
+    bitmap_clear(CORE->canvas.bitmap, PUN_COLOR_TRANSPARENT);
+    CORE->window.buffer = CORE->canvas.bitmap->pixels;
+    clip_reset();
 
     return 0;
 }
@@ -4725,25 +4768,25 @@ punity_frame_end()
     CORE->key_text_length = 0;
     CORE->key_text[0] = 0;
 
-    float frame_time = 1.0f/30.0f;
-    // printf("%d %f %f\n", CORE->recorder.active, CORE->time_delta, frame_time);
-    if (CORE->recorder.active && CORE->time_delta < frame_time) {
-        int sleep = (frame_time - CORE->time_delta) * 1e3;
-        // printf("recorder throttle %d\n", sleep);
+    bool throttle = CORE->recorder.active;
+#if !PUNITY_OPENGL || PUNITY_OPENGL_30FPS
+    throttle = true;
+#endif
+    if (throttle && CORE->time_delta < (1.0f/30.0f)) {
+        int sleep = ((1.0f/30.0f) - CORE->time_delta) * 1e3;
         Sleep(sleep);
-        // printf("Slept for %d ms.\n", sleep);
-        CORE->time_delta = frame_time;
+        CORE->time_delta = (1.0f/30.0f);
     }
 }
 
-#if PUN_FEATURE_RECORDER
+#if PUNITY_FEATURE_RECORDER
 void record_frame_();
 #endif
 
 void
 punity_frame_step()
 {
-#if PUN_FEATURE_FILEWATCHER
+#if PUNITY_FEATURE_FILEWATCHER
     filewatcher_step();
 #endif
     
@@ -4756,9 +4799,9 @@ punity_frame_step()
     perf_to(&CORE->perf_step);
     bank_end(&stack_state);
 
-#if PUN_FEATURE_RECORDER
+#if PUNITY_FEATURE_RECORDER
     record_frame_();
-    if (key_pressed(PUN_FEATURE_RECORDER_KEY)) {
+    if (key_pressed(PUNITY_FEATURE_RECORDER_KEY)) {
         if (CORE->recorder.active) {
             record_end();
         } else {
@@ -4802,7 +4845,7 @@ void
 punity_on_char(u32 ch)
 {
     if (CORE->key_text_length != array_count(CORE->key_text) && ch >= ' ') {
-#if PUN_TEXT_UNICODE
+#if PUNITY_TEXT_UNICODE
         CORE->key_text[CORE->key_text_length] = (u32)ch;
 #else
         CORE->key_text[CORE->key_text_length] = (char)ch;
@@ -4829,7 +4872,7 @@ punity_on_text(const char *text)
 // Recorder.
 //
 
-#if PUN_FEATURE_RECORDER
+#if PUNITY_FEATURE_RECORDER
 void
 record_begin()
 {
@@ -4853,12 +4896,6 @@ record_frame_()
     if (!R->active) {
         return;
     }
-
-#if PUN_SIXTY
-    if ((CORE->frame % 2) != 0) {
-        return;
-    }
-#endif
 
     isize frame_size = CORE->window.width * CORE->window.height;
 
@@ -4963,13 +5000,13 @@ void record_begin() {};
 void record_end() {};
 #endif
 
-#endif // if PUN_LIB == 0
+#endif // if PUNITY_LIB == 0
 
 #if PUN_RUNTIME_SDL
 #include "punity-sdl.c"
 #else
 
-#if PUN_LIB == 0
+#if PUNITY_LIB == 0
 //
 // Windows
 //
@@ -4999,7 +5036,7 @@ static struct
     DSBUFFERDESC audio_buffer_description;
     DWORD audio_cursor;
 
-#if PUN_OPENGL
+#if PUNITY_OPENGL
     int gl_texture;
 #endif
 }
@@ -5007,7 +5044,7 @@ win32_ = {0};
 
 #define WIN32_DEFAULT_STYLE_ (WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX)
 
-#if PUN_OPENGL
+#if PUNITY_OPENGL
 
 #include <GL/gl.h>
 #pragma comment(lib, "opengl32.lib")
@@ -5201,7 +5238,7 @@ win32_gl_window_init_(HWND hwnd)
         WGL_CONTEXT_MAJOR_VERSION_ARB, 3,
         WGL_CONTEXT_MINOR_VERSION_ARB, 2,
         WGL_CONTEXT_FLAGS_ARB, 0
-#if PUN_DEBUG
+#if PUNITY_DEBUG
         | WGL_CONTEXT_DEBUG_BIT_ARB
 #endif
         ,
@@ -5230,7 +5267,7 @@ win32_gl_window_init_(HWND hwnd)
     return 1;
 }
 
-#endif // PUN_OPENGL
+#endif // PUNITY_OPENGL
 
 //
 // Sound
@@ -5283,7 +5320,7 @@ win32_sound_init_(HWND window)
 
     win32_.audio_format.wFormatTag = WAVE_FORMAT_PCM;
     win32_.audio_format.nChannels = PUNP_SOUND_CHANNELS;
-    win32_.audio_format.nSamplesPerSec = PUN_SOUND_SAMPLE_RATE;
+    win32_.audio_format.nSamplesPerSec = PUNITY_SOUND_SAMPLE_RATE;
     win32_.audio_format.wBitsPerSample = 16;
     win32_.audio_format.nBlockAlign = (win32_.audio_format.nChannels * win32_.audio_format.wBitsPerSample) / 8;
     win32_.audio_format.nAvgBytesPerSec = win32_.audio_format.nSamplesPerSec * win32_.audio_format.nBlockAlign;
@@ -5554,7 +5591,7 @@ win32_window_callback_(HWND window, UINT message, WPARAM wp, LPARAM lp)
             f32 scale_x = width  / CORE->window.width;
             f32 scale_y = height / CORE->window.height;
             
-            CORE->window.scale = minimum(scale_x, scale_y);
+            CORE->window.scale = maximum(scale_x, scale_y);
 
             f32 viewport_width  = CORE->window.width  * CORE->window.scale;
             f32 viewport_height = CORE->window.height * CORE->window.scale;
@@ -5610,7 +5647,7 @@ WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR command_line, int sho
         // Cannot set 1MS Sleep() resolution.
     }
 
-#ifdef PUN_OPENGL
+#ifdef PUNITY_OPENGL
     win32_gl_init_();
 #endif
 
@@ -5668,7 +5705,7 @@ WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR command_line, int sho
         window_fullscreen_toggle();
     }
 
-#ifdef PUN_OPENGL
+#ifdef PUNITY_OPENGL
     win32_gl_window_init_(win32_.window);
 
     glEnable(GL_TEXTURE_2D);
@@ -5739,7 +5776,7 @@ WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR command_line, int sho
             }
         }
 
-#if PUN_OPENGL
+#if PUNITY_OPENGL
         glClearColor(
             CORE->background.r / 255.0f,
             CORE->background.g / 255.0f,
@@ -5798,7 +5835,7 @@ end:;
 }
 
 #endif // PUN_RUNTIME_WINDOWS
-#endif // if PUN_LIB == 0
+#endif // if PUNITY_LIB == 0
 
 #endif // else PUN_RUNTIME_SDL
 
