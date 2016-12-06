@@ -13,6 +13,7 @@ A tiny game engine with zero dependencies in C that I made for myself to make ti
 - Sounds, fonts and bitmap API available.
 - Built in GIF recorder (outputs `record.gif` file).
 - Example included (see `example-platformer.c`).
+- Experimental integration with SDL2 (build with `build sdl`, see `lib/punity-sdl.c`).
 
 ## Speed
 
