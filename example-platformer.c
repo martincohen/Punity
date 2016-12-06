@@ -5,7 +5,6 @@
 // TODO: Camera.
 // TODO: Parallax.
 
-#define PUNITY_FEATURE_WORLD 1
 #define PUNITY_IMPLEMENTATION
 #include "punity.h"
 
@@ -20,7 +19,7 @@ Player;
 
 typedef struct Game_
 {
-    Font font;
+    Bitmap font;
     Scene scene;
     Bitmap tileset;
     Sound sound_jump;
@@ -57,18 +56,22 @@ player_step(Player *P, int key_left, int key_right, int key_jump)
 {
     Collision C = {0};
 
-    // Move the player.
-    static int PLAYER_JUMP[] = { 5, 4, 3, 2, 2, 1, 1, 1 };
- 
+    // Left & right.
+
     int dx = 0;
     if (key_right) { dx = +1; }
     if (key_left)  { dx = -1; }
+    scene_entity_move_x(&GAME->scene, P->E, dx * 2, &C);
+
+    // Jump & fall.
+
+    static int PLAYER_JUMP[] = { 5, 4, 3, 2, 2, 1, 1, 1 };
+
     if (key_jump && P->grounded) {
         P->jump = 1;
         sound_play(&GAME->sound_jump);
     }
-    
-    scene_entity_move_x(&GAME->scene, P->E, dx * 2, &C);
+
     if (!P->jump) {
         P->fall = minimum(P->fall + 1, 16);
         if (!scene_entity_move_y(&GAME->scene, P->E, P->fall, &C)) {
@@ -203,6 +206,6 @@ step()
     }
     
     char buf[256];
-    sprintf(buf, "%.3fms", CORE->perf_step.delta * 1e3);
+    sprintf(buf, "%.3fms %.3f", CORE->perf_step * 1e3, CORE->time_delta);
     text_draw(buf, 0, 0, 2);
 }

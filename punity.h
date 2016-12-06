@@ -25,112 +25,10 @@
  * SOFTWARE.
  */
 
-/**
- * Version 2.0
- *
- * - Switched to single file `punity.h`.
- * - Removed the need for `config.h`.
- *
- * - Added GIF recording.
- *   - Depends on `lib/gifw.h`.
- *   - Forced to 30fps. (even if Punity runs on 60fps)
- *   - Call `record_begin()` to start recording.
- *   - Call `record_end()` to end recording and save the recording to `record.gif`.
- *     - Saving the `gif` might take longer time so the frame in which the record_end() is called
- *       will take longer than 30 or 60fps (depending on your settings).
- *
- * - Added SDL runtime. (still work-in-progress)
- *   - Depends on `lib/punity-sdl.c`.
- *   - `SDL2.dll` has to be distributed with the executable.
- *   - Build with `build sdl`
- *    - Reorganized `main()`, better platform code separation.
- *
- * - Added entity and collision system.
- *   - Customizable `SceneEntity` struct with `PUN_SCENE_ENTITY_CUSTOM`.
- *   - Uses `SpatialHash` for entities.
- *   - Uses fixed tile map for static colliders.
- *     - Much faster than adding each tile to `SpatialHash`.
- *   - Integer-only without need to fiddle with float epsilons.
- *   - Uses `Deque` to store "unlimited amount" of entities.
- *   - Use `entity_add` / `entity_remove` to add or remove entities.
- *   - Use `entity_move_x`, `entity_move_y` to move your entities.
- *
- * - Reworked `build.bat`.
- *    - Now able to build different targets than `main.c` (i.e. build examples/example-platformer)
- *    - Arguments can be in any order.
- *
- * - Added PUNITY_OPENGL_30FPS to disable forcing framerate to 30fps.
- * - Removed DirectX support (moved to a separate module that will be optional in the future).
- *   - This change has been made to keep the runtime layer in `punity.h` file as simple as possible.
- * - Changed `init` signature to return `int` to be able to exit in case of error.
- * - Changed `Bank` now reserves given capacity and commits when needed.
- * - Changed `file_read` now takes optional `bank` pointer to store the file, if it's 0 then it'll use malloc()
- * - Changed COLOR_CHANNELS to PUNITY_COLOR_CHANNELS
- * - Added `configure` callback now added to do runtime configuration for some options (see CoreConfig)
- * - Added `window_title(title)` to set the title of the window dynamically.
- * - Added `window_fullscreen_toggle()` to maximize the window to fullscreen and back.
- * - Added `Deque` for dynamic allocations.
- * - Added `pixel_draw`
- * - Added `line_draw`
- * - Added `color_set` to set color at given index in the palette.
- * - Added `frame_draw` to draw rectangle outlines.
- * - Added `CORE->time`.
- * - Moved `color_lerp` is now in header file.
- * - Added `CORE->key_text` and `CORE->key_text_length` to be able to work with text input.
- * - Fixed bug with drawing bitmaps higher than the screen.
- * - Removed `PUN_COLOR_BLACK` and `PUN_COLOR_WHITE`.
- *
- * Version 1.6
- * - Version actually used for Ludum Dare and Low-Rez jams.
- * - "Cherchez" has been made with this version: https://martincohen.itch.io/cherchez
- * - All the configuration macros are now prefixed with PUN_
- * - Fixed bug in sound mixing.
- * - All rendering properties are now stored in dedicated `Canvas` struct.
- * - Added simple randomization functions (see the documentation).
- * - Added `file_write` function to accompany `file_read`.
- * - Added basic `V2f` struct and functions.
- * - Added vertical flipping for `bitmap_draw` function.
- * - Reworked `bitmap_draw` function.
- * - Added drawing list support (see the documentation).
- * - Added `*_push` functions for pushing draw operations to draw list (see the documentation)
- *
- * Version 1.5
- * - Renamed configuration macros to use PUN_* prefix
- * - PUN_MAIN can now be used to not define the main entry function.
- * - Forced PUN_COLOR_BLACK to 1 and PUN_COLOR_WHITE to 2.
- * - Changed bitmap_draw signature to have Bitmap* at the beginning.
- * - Changed text_draw signature to have const char* at the beginning.
- * - Translation direction changed in bitmap_draw() and text_draw().
- *
- * Version 1.4
- * - Fixed audio clipping problems by providing a soft-clip.
- * - Added master and per-sound volume controls.
- *
- * Version 1.3
- * - Fixed RGB in bitmap loader on Windows.
- *
- * Version 1.2
- * - Replaced usage of `_` prefixes with `PUNP_` prefixes to not violate reserved identifiers.
- *
- * Version 1.1
- * - Fixed timing issues and frame counting.
- * - Fixed KEY_* constants being not correct for Windows platform.
- * - Added draw_rect().
- *
- * Version 1.0
- * - Initial release
- */
-
 
 #include <stdio.h>
-// #include <stdlib.h>
-// #include <string.h>
 #include <stdint.h>
 #include <stdbool.h>
-// #include <math.h>
-// #include <assert.h>
-// #include <stdarg.h>
-// #include <limits.h>
 
 #if _DEBUG
 #define PUNITY_DEBUG 1
@@ -198,12 +96,6 @@
 #define PUNITY_FEATURE_RECORDER_KEY KEY_F11
 #endif
 
-// Scale used for recording.
-//
-#ifndef PUNITY_FEATURE_RECORDER_SCALE
-#define PUNITY_FEATURE_RECORDER_SCALE 2
-#endif
-
 // Maximum number of bytes available in `CORE->stack` bank.
 //
 #ifndef PUNITY_STACK_CAPACITY
@@ -254,18 +146,6 @@
 #define PUNITY_SOUND_SAMPLE_RATE 48000
 #endif
 
-// FileWatcher API.
-//
-#ifndef PUNITY_FEATURE_FILEWATCHER
-#define PUNITY_FEATURE_FILEWATCHER 0
-#endif
-
-// World API.
-//
-#ifndef PUNITY_FEATURE_WORLD
-#define PUNITY_FEATURE_WORLD 0
-#endif
-
 // Platform specific color channel ordering.
 // As more platforms are available, this will be set automatically per platform.
 //
@@ -288,14 +168,6 @@ typedef ptrdiff_t isize;
 
 #define unused(x) (void)x
 
-#if defined(_MSC_VER)
-#define PUN_ALIGN_(x) __declspec(align(x))
-#else
-#if defined(__GNUC__)
-#define PUN_ALIGN_(x) __attribute__ ((aligned(x)))
-#endif
-#endif
-
 #define align_to(value, N) ((value + (N-1)) & ~(N-1))
 #define ceil_div(n, a) (((n) + (a-1))/(a))
 #define equalf(a, b, epsilon) (fabs(b - a) <= epsilon)
@@ -317,10 +189,6 @@ extern inline i32 i32_positive(i32 i);
 // Returns 1 if `i` is negative, 0 otherwise.
 extern inline i32 i32_negative(i32 i);
 
-#ifndef M_PI_2
-#define M_PI_2 1.57079632679489661923
-#endif
-
 //
 // Forwards
 //
@@ -336,31 +204,11 @@ f32 rand_f(u32 *x);
 f32 rand_fr(u32 *x, f32 min, f32 max);
 i32 rand_ir(u32 *x, i32 min, i32 max);
 
-typedef struct
-{
-    i32 x, y;
-}
-V2;
-
-typedef struct 
-{
-    f64 stamp;
-    f32 delta;
-}
-PerfSpan;
+//
+// Time
+//
 
 f64 perf_get();
-
-// Sets the stamp, keeps the delta.
-//
-void perf_from(PerfSpan *span);
-
-// Sets the stamp and delta.
-//
-void perf_to(PerfSpan *span);
-
-// Returns current delta.
-f32 perf_delta(const PerfSpan *span);
 
 //
 // Memory
@@ -481,73 +329,6 @@ DEQUE_PUSH_SCALAR_DECLARE(i32, int32_t);
 DEQUE_PUSH_SCALAR_DECLARE(u32, uint32_t);
 
 //
-// Strings
-//
-
-char *string_push_0(char *dest, const char *src);
-char *string_push(char *dest, const char *src_it, const char *src_end);
-size_t string_concat(char *buffer, size_t size, const char *str, ...);
-extern inline char *string_copy_0(char *dest, size_t size, const char *str);
-
-//
-// File I/O
-//
-
-void *file_read(Bank *bank, const char *path, size_t *size);
-bool file_write(const char *path, void *ptr, size_t size);
-
-
-//
-// Path
-//
-
-#define path_is_slash(Ch) ((Ch) == '/' || (Ch) == '\\')
-
-#define PUN_PATH_MAX (1024)
-#if PUN_PLATFORM_WINDOWS
-#define PUN_PATH_SEPARATOR ('\\')
-#else
-#define PUN_PATH_SEPARATOR ('/')
-#endif
-
-// Normalizes zero-terminated path to common format.
-char *path_normalize_0(char *path);
-// Normalizes path to common format.
-char *path_normalize(char *it, char *end);
-// Concats multiple path elements.
-// Automatically inserts slashes between the elements when needed.
-// IMPORTANT: The last parameter should always be 0.
-uint32_t path_concat(char *buffer, uint32_t size, const char *arg1, ...);
-
-
-// Returns extension of the path (pointer to the string after last dot).
-const char *path_extension_0(const char *path);
-const char *path_extension(const char *it, const char *end);
-// Returns name from the path (pointer to the string after last slash).
-const char *path_file_name_0(const char *path);
-const char *path_file_name(const char *it, const char *end);
-
-//
-// Math
-//
-
-typedef struct
-{
-    f32 x;
-    f32 y;
-}
-V2f;
-
-extern inline V2f v2f_make(f32 x, f32 y);
-extern inline f32 v2f_length(V2f v);
-extern inline V2f v2f_normalize(V2f v);
-extern inline f32 v2f_angle(V2f v);
-extern inline V2f v2f_minus(V2f a, V2f b);
-
-#define v2_inner(ax, ay, bx, by) \
-    ((ax)*(bx) + (ay)*(by))
-
-//
 // Graphics
 //
 
@@ -659,17 +440,6 @@ typedef struct
 }
 Bitmap;
 
-typedef struct
-{
-    Bitmap bitmap;
-    i32 char_width;
-    i32 char_height;
-#ifdef PUN_FONT_CUSTOM
-    PUN_FONT_CUSTOM
-#endif
-}
-Font;
-
 enum {
     DrawFlags_None  = 0,
     DrawFlags_FlipH = 1 << 0,
@@ -683,7 +453,7 @@ typedef struct
     i32 translate_x;
     i32 translate_y;
     Rect clip;
-    Font *font;
+    Bitmap *font;
     u32 flags;
     u8 mask;
 #ifdef PUN_CANVAS_CUSTOM
@@ -720,7 +490,7 @@ void bitmap_load_resource_ex(Bank *bank, Bitmap *bitmap, const char *resource_na
 #endif
 
 #if PUNITY_USE_STB_IMAGE
-void font_load_resource(Font *bitmap, const char *resource_name, i32 char_width, i32 char_height);
+void font_load_resource(Bitmap *font, const char *resource_name, i32 tile_width, i32 tile_height);
 #endif
 
 //
@@ -740,17 +510,13 @@ bool clip_check();
 
 // Draws a single pixel, sub-optimal, don't use, please.
 void pixel_draw(i32 x, i32 y, u8 color);
-
 // Draws a line.
 void line_draw(i32 x1, i32 y1, i32 x2, i32 y2, u8 color);
-
 // Draws a filled rectangle to the canvas.
 void rect_draw(Rect rect, u8 color);
-
 // Draws rectangle edges specified by `frame_edges` (Edge_* constants)
 // with a `frame_color` and `fill_color`.
 void frame_draw(Rect r, u8 frame_color, int frame_edges, u8 fill_color);
-
 // Draws a bitmap to the canvas.
 void bitmap_draw_single_(Bitmap *bitmap, i32 x, i32 y, i32 pivot_x, i32 pivot_y, Rect *bitmap_rect);
 
@@ -763,15 +529,12 @@ void bitmap_draw_simd_(Bitmap *bitmap, i32 x, i32 y, i32 pivot_x, i32 pivot_y, R
 
 // Returns a tile rectangle in the bitmap based on `index`.
 Rect tile_get(Bitmap *bitmap, i32 index);
-
 // Draws a tile from bitmap (utilizing Bitmap's tile_width/tile_height).
 void tile_draw(Bitmap *bitmap, i32 x, i32 y, i32 index);
-
 // Copies bitmap from `source` to `destination`
 void bitmap_copy(Bitmap *destination, Bitmap *source);
-
 // Calculates width and height of the text using current font.
-V2 text_measure(const char *text);
+void text_measure(const char *text, i32 *w, i32 *h);
 // Draws text to the canvas.
 // Fails if CORE->font is not set, as it's using it draw the text.
 void text_draw(const char *text, i32 x, i32 y, u8 color);
@@ -783,7 +546,7 @@ typedef struct
 }
 TextAttr;
 
-V2 text_draw_attr(const char *text, i32 x, i32 y, TextAttr *attrs, size_t length);
+void text_draw_attr(const char *text, i32 x, i32 y, TextAttr *attrs, size_t length, i32 *ex, i32 *ey);
 
 
 //
@@ -971,57 +734,6 @@ void record_end();
 void record_toggle();
 
 //
-// File watcher.
-//
-
-#if PUNITY_FEATURE_FILEWATCHER
-
-#include <sys/stat.h>
-#include <time.h>
-
-#define FILEWATCHER_CALLBACK(name) int name(const char *path, int path_length, void *extra)
-typedef FILEWATCHER_CALLBACK(FileWatcherCallbackF);
-
-typedef struct FileWatcherEntry_ {
-    char *path;
-    int path_length;
-    time_t time;
-    FileWatcherCallbackF *f;
-    size_t extra_size;
-}
-FileWatcherEntry;
-
-#define filewatcherentry_size(Entry) \
-    (sizeof(FileWatcherEntry) + (Entry)->path_length + 1 + (Entry)->extra_size)
-
-typedef struct FileWatcher_ {
-    Deque files;
-    size_t count;
-    size_t count_inactive;
-}
-FileWatcher;
-
-#endif // PUNITY_FEATURE_FILEWATCHER
-
-#if PUNITY_FEATURE_WORLD
-
-//
-// State
-//
-
-typedef struct 
-{
-    i32 current;
-    i32 next;
-    i32 frame;
-    i32 timer;
-}
-State;
-
-void state_init(State *S, i32 state);
-void state_step(State *S);
-
-//
 // Spatial Hash
 //
 
@@ -1192,8 +904,6 @@ bool scene_entity_cast_y(Scene *scene, SceneEntity *entity, f32 dy, Collision *C
 bool scene_entity_move_x(Scene *scene, SceneEntity *entity, f32 dx, Collision *C);
 bool scene_entity_move_y(Scene *scene, SceneEntity *entity, f32 dy, Collision *C);
 
-#endif // PUNITY_FEATURE_WORLD
-
 //
 // Core
 //
@@ -1275,16 +985,15 @@ typedef struct
 #endif
     u8 key_text_length;
 
-    // Total frame time.
-    PerfSpan perf_frame;
     // Total time taken to step.
-    PerfSpan perf_step;
+    f32 perf_step;
 
     // Current frame number.
     i64 frame;
     // Current time.
     f32 time;
     f32 time_delta;
+    f32 time_frame_begin;
 
     // Color used to draw the window background.
     Color background;
@@ -1298,10 +1007,6 @@ typedef struct
     // Data for shader.
 #ifdef PUN_SHADER_TYPE
     PUN_SHADER_TYPE *shader;
-#endif
-
-#if PUNITY_FEATURE_FILEWATCHER
-    FileWatcher file_watcher;
 #endif
 
     const char *args;
@@ -1506,7 +1211,6 @@ extern KeyMapping KEY_MAPPING[];
 #define PUNP_SOUND_DEFAULT_SOUND_VOLUME 0.9f
 #define PUNP_SOUND_DEFAULT_MASTER_VOLUME 0.9f
 
-// Set to 1 to output a audio.buf file from the mixer.
 #define PUNP_SOUND_CHANNELS 2
 #define PUNP_SOUND_BUFFER_CHUNK_COUNT 16
 #define PUNP_SOUND_BUFFER_CHUNK_SAMPLES  3000
@@ -1685,292 +1389,6 @@ perf_get()
     QueryPerformanceCounter((LARGE_INTEGER *)&counter);
     return (f64)((f64)counter / frequency); // *(1e3);
 #endif
-}
-
-void
-perf_from(PerfSpan *span)
-{
-    span->stamp = perf_get();
-}
-
-void
-perf_to(PerfSpan *span)
-{
-    f64 now = perf_get();
-    span->delta = (f32)(now - span->stamp);
-    span->stamp = now;
-}
-
-f32
-perf_delta(const PerfSpan *span)
-{
-    f64 now = perf_get();
-    return maximum(0.0f, (f32)(now - span->stamp));
-}
-
-//
-// Strings
-//
-
-char *
-string_push_0(char *dest, const char *src)
-{
-    while (*src) {
-        *dest++ = *src++;
-    }
-    *dest = 0;
-    return dest;
-}
-
-char *
-string_push(char *dest, const char *src_it, const char *src_end)
-{
-    size_t length = src_end - src_it;
-    memcpy(dest, src_it, length);
-    return dest + length;
-}
-
-size_t
-string_concat(char *buffer, size_t size, const char *str, ...)
-{
-    va_list args;
-    const char *s;
-
-    size_t length = strlen(str);
-    va_start(args, str);
-    while ((s = va_arg(args, char*))) {
-        length += strlen(s);
-    }
-    va_end(args);
-
-    if (length >= size) {
-        ASSERT_MESSAGE(buffer == 0, "Insufficient buffer size.");
-        return length + 1;
-    }
-
-//    char *res = malloc(len + 1);
-//    if (!res) return NULL;
-
-    strcpy(buffer, str);
-    va_start(args, str);
-    while ((s = va_arg(args, char*))) {
-        strcat(buffer, s);
-    }
-    va_end(args);
-
-    return length;
-}
-
-char *
-string_copy_0(char *dest, size_t size, const char *str)
-{
-    ASSERT(size != 0);
-    while (size && *str) {
-        *dest++ = *str++;
-        size--;
-    }
-    *dest = 0;
-    return dest;
-}
-
-
-//
-// File I/O
-//
-
-void *
-file_read(Bank *bank, const char *path, size_t *size)
-{
-    FILE *f = fopen(path, "rb");
-    if (f) {
-        fseek(f, 0L, SEEK_END);
-        *size = ftell(f);
-        fseek(f, 0L, SEEK_SET);
-
-        u8 *ptr;
-        if (bank == 0) {
-            ptr = malloc(*size + 1);
-        } else {
-            ptr = bank_push(bank, *size + 1);
-        }
-        size_t read = fread(ptr, 1, *size, f);
-        fclose(f);
-        ASSERT(read == *size);
-        ptr[*size] = 0;
-
-        return ptr;
-    }
-    return 0;
-}
-
-bool
-file_write(const char *path, void *ptr, size_t size)
-{
-    FILE *f = fopen(path, "wb+");
-    if (f) {
-        fwrite(ptr, size, 1, f);
-        fclose(f);
-        return true;
-    }
-    return false;
-}
-
-//
-// Path
-//
-
-#define PATH_NORMALIZE(Ch) \
-    switch (Ch) \
-    { \
-    case '\\': \
-        Ch = '/'; \
-        break; \
-    case 0: \
-        goto end; \
-    }
-
-char *
-path_normalize_0(char *path)
-{
-    for (;;)
-    {
-        PATH_NORMALIZE(*path);
-        path++;
-    }
-end:
-    return path;
-}
-
-char *
-path_normalize(char *it, char *end)
-{
-    while (it != end)
-    {
-        PATH_NORMALIZE(*it);
-        it++;
-    }
-end:
-    return it;
-}
-
-static const char *
-path_trim_slashes_front_(const char *needle)
-{
-    if (path_is_slash(*needle)) {
-        do { needle++; } while (path_is_slash(*needle));
-    }
-    return needle;
-}
-
-static const char *
-path_trim_slashes_back_(const char *needle)
-{
-    const char *needle_end = needle + strlen(needle);
-    while (needle_end != needle && path_is_slash(*(needle_end-1))) {
-        needle_end--;
-    }
-
-    return needle_end;
-}
-
-static const char *
-path_trim_slashes_(const char *needle, const char **needle_end)
-{
-    needle = path_trim_slashes_front_(needle);
-    *needle_end = path_trim_slashes_back_(needle);
-
-    return needle;
-}
-
-uint32_t
-path_concat(char *buffer, uint32_t size, const char *arg1, ...)
-{
-    va_list args;
-    const char *arg;
-    const char *arg_it;
-    const char *arg_end;
-
-    arg_end = path_trim_slashes_back_(arg1);
-    size_t length = arg_end - arg1;
-
-    va_start(args, arg1);
-    while ((arg = va_arg(args, char*)))
-    {
-        arg_it = path_trim_slashes_(arg, &arg_end);
-        length += (arg_end - arg_it) ? (arg_end - arg_it) + 1 : 0;
-    }
-    va_end(args);
-
-    if ((length + 1) > size) {
-        ASSERT_MESSAGE(buffer == 0, "Insufficient buffer size.");
-        return length + 1;
-    }
-
-    buffer[0] = 0;
-    if (length)
-    {
-        char *it = buffer;
-
-        arg_end = path_trim_slashes_back_(arg1);
-        it = string_push(it, arg1, arg_end);
-
-        va_start(args, arg1);
-        while ((arg = va_arg(args, char*))) {
-            arg_it = path_trim_slashes_(arg, &arg_end);
-            if (arg_end - arg_it) {
-                if (it != buffer) {
-                    *it++ = PUN_PATH_SEPARATOR;
-                }
-                it = string_push(it, arg_it, arg_end);
-            }
-        }
-        va_end(args);
-
-        // ASSERT(it == (buffer + length));
-        path_normalize(buffer, it);
-
-        *it++ = 0;
-    }
-
-    return size;
-}
-
-const char *
-path_extension_0(const char *path)
-{
-    const char *ret = strrchr(path, '.');
-    return ret ? ret : (path + strlen(path));
-}
-
-const char *
-path_file_name_0(const char *path)
-{
-    ASSERT(path);
-    if (*path) {
-        char *it = (char*)path + strlen(path);
-        while (it != path) {
-            it--;
-            if (path_is_slash(*it)) {
-                return it + 1;
-            }
-        }
-        return it;
-    }
-    return 0;
-}
-
-const char *
-path_file_name(const char *it, const char *end)
-{
-    ASSERT(it <= end);
-    while (end != it)
-    {
-        end--;
-        if (path_is_slash(*end)) {
-            return end + 1;
-        }
-    }
-    return end;
 }
 
 //
@@ -2428,6 +1846,7 @@ palette_color_find(Palette *palette, Color color, int range)
     return -1;    
 }
 
+// Guarantees a find, this is last resort color matching function.
 int
 palette_color_find_fuzzy(Palette *palette, Color color, int range)
 {
@@ -2480,22 +1899,15 @@ rect_make(i32 min_x, i32 min_y, i32 max_x, i32 max_y)
 Rect
 rect_make_size(i32 x, i32 y, i32 w, i32 h)
 {
-    Rect r = rect_make(x,
-                       y,
-                       x + w,
-                       y + h);
+    Rect r = rect_make(x, y, x + w, y + h);
     return r;
 }
 
 Rect
 rect_make_centered(i32 x, i32 y, i32 w, i32 h)
 {
-    w = w / 2;
-    h = h / 2;
-    Rect r = rect_make(x - w,
-                       y - h,
-                       x + w,
-                       y + h);
+    w = w / 2; h = h / 2;
+    Rect r = rect_make(x - w, y - h, x + w, y + h);
     return r;
 }
 
@@ -2836,49 +2248,6 @@ debug_palette(i32 x, i32 y, i32 z)
     }
 }
 
-//
-// V2f
-//
-
-V2f
-v2f_make(f32 x, f32 y)
-{
-    V2f v;
-    v.x = x;
-    v.y = y;
-    return v;
-}
-
-f32
-v2f_length(V2f v)
-{
-    return sqrtf((v.x * v.x) + (v.y * v.y));
-}
-
-V2f
-v2f_normalize(V2f v)
-{
-    V2f ret;
-    f32 length = v2f_length(v);
-    if (length == 0.0f) {
-        ret = v;
-    } else {
-        ret = v2f_make(v.x / length, v.y / length);
-    }
-    return ret;
-}
-
-f32
-v2f_angle(V2f v)
-{
-    return atan2f(v.y, v.x);
-}
-
-V2f
-v2f_minus(V2f a, V2f b)
-{
-    return v2f_make(a.x - b.x, a.y - b.y);
-}
 
 //
 // Canvas
@@ -3457,26 +2826,26 @@ bitmap_copy(Bitmap *destination, Bitmap *source)
     }
 }
 
-V2
-text_measure(const char *text)
+void
+text_measure(const char *text, i32 *w, i32 *h)
 {
-    V2 size = {0, 1};
-    Font *font = CORE->canvas.font;
+    *w = 0;
+    *h = 1;
+    Bitmap *font = CORE->canvas.font;
     while (*text)
     {
         switch (*text) {
         case '\n':
-            size.y += 1;
+            w += 1;
             break;
         default:
-            size.x += 1;
+            h += 1;
             break;
         }
         text++;
     }
-    size.x *= font->char_width;
-    size.y *= font->char_height;
-    return size;
+    *w *= font->tile_width;
+    *h *= font->tile_height;
 }
 
 void
@@ -3484,10 +2853,10 @@ text_draw(const char *text, i32 x, i32 y, u8 color)
 {
     ASSERT(CORE->canvas.font);
     Canvas canvas = CORE->canvas;
-    Font *font = CORE->canvas.font;
+    Bitmap *font = CORE->canvas.font;
     CORE->canvas.flags = DrawFlags_Mask;
     CORE->canvas.mask = color;
-    i32 columns = font->bitmap.width / font->char_width;
+    i32 columns = font->width / font->tile_width;
     i32 dx = x;
     i32 dy = y;
     Rect cr;
@@ -3497,15 +2866,15 @@ text_draw(const char *text, i32 x, i32 y, u8 color)
         switch (c) {
             case '\n':
                 dx = x;
-                dy += font->char_height;
+                dy += font->tile_height;
                 break;
             default:
-                cr.left = (c % columns) * font->char_width;
-                cr.top = (c / columns) * font->char_height;
-                cr.right = cr.left + font->char_width;
-                cr.bottom = cr.top + font->char_height;
-                bitmap_draw(&font->bitmap, dx, dy, 0, 0, &cr);
-                dx += font->char_width;
+                cr.left = (c % columns) * font->tile_width;
+                cr.top = (c / columns) * font->tile_height;
+                cr.right = cr.left + font->tile_width;
+                cr.bottom = cr.top + font->tile_height;
+                bitmap_draw(font, dx, dy, 0, 0, &cr);
+                dx += font->tile_width;
                 break;
         }
         text++;
@@ -3513,17 +2882,16 @@ text_draw(const char *text, i32 x, i32 y, u8 color)
     CORE->canvas = canvas;
 }
 
-V2
-text_draw_attr(const char *text, i32 x, i32 y, TextAttr *attrs, size_t length)
+void
+text_draw_attr(const char *text, i32 x, i32 y, TextAttr *attrs, size_t length, i32 *ex, i32 *ey)
 {
     ASSERT(CORE->canvas.font);
-    Font *font = CORE->canvas.font;
+    Bitmap *font = CORE->canvas.font;
     Canvas canvas = CORE->canvas;
     CORE->canvas.flags = DrawFlags_Mask;
-    i32 columns = font->bitmap.width / font->char_width;
-    V2 point;
-    point.x = x;
-    point.y = y;
+    i32 columns = font->width / font->tile_width;
+    i32 x_ = x;
+    i32 y_ = y;
     Rect glyph_r, bg_r;
 
     char glyph;
@@ -3531,24 +2899,24 @@ text_draw_attr(const char *text, i32 x, i32 y, TextAttr *attrs, size_t length)
         glyph = clamp(*text, 0, 127);
         switch (glyph) {
             case '\n':
-                point.x = x;
-                point.y += font->char_height;
+                x_ = x;
+                y_ += font->tile_height;
                 break;
             default:
-                bg_r = rect_make_size(point.x, point.y, font->char_width, font->char_height);
+                bg_r = rect_make_size(x_, y_, font->tile_width, font->tile_height);
                 rect_draw(bg_r, attrs->bg);
 
                 if (glyph != 0 && glyph != ' ')
                 {
-                    glyph_r.left = (glyph % columns) * font->char_width;
-                    glyph_r.top = (glyph / columns) * font->char_height;
-                    glyph_r.right = glyph_r.left + font->char_width;
-                    glyph_r.bottom = glyph_r.top + font->char_height;
+                    glyph_r.left = (glyph % columns) * font->tile_width;
+                    glyph_r.top = (glyph / columns) * font->tile_height;
+                    glyph_r.right = glyph_r.left + font->tile_width;
+                    glyph_r.bottom = glyph_r.top + font->tile_height;
                     CORE->canvas.mask = attrs->fg;
-                    bitmap_draw(&font->bitmap, point.x, point.y, 0, 0, &glyph_r);
+                    bitmap_draw(font, x_, y_, 0, 0, &glyph_r);
                 }
 
-                point.x += font->char_width;
+                x_ += font->tile_width;
                 break;
         }
         length--;
@@ -3556,7 +2924,8 @@ text_draw_attr(const char *text, i32 x, i32 y, TextAttr *attrs, size_t length)
         attrs++;
     }
     CORE->canvas = canvas;
-    return point;
+    if (ex) *ex = x_;
+    if (ey) *ey = y_;
 }
 
 //
@@ -3691,7 +3060,7 @@ bitmap_load_resource(Bitmap *bitmap, const char *resource_name, int palette_rang
 }
 
 void
-font_load_resource(Font *font, const char *resource_name, i32 char_width, i32 char_height)
+font_load_resource(Bitmap *font, const char *resource_name, i32 tile_width, i32 tile_height)
 {
     size_t size;
     void *ptr = resource_get(resource_name, &size);
@@ -3701,96 +3070,14 @@ font_load_resource(Font *font, const char *resource_name, i32 char_width, i32 ch
     ASSERT(pixels);
     ASSERT(comp == 4);
 
-    bitmap_init_ex_(CORE->storage, &font->bitmap, (i32)width, (i32)height, pixels, PUN_BITMAP_MASK, 0, resource_name);
+    bitmap_init_ex_(CORE->storage, font, (i32)width, (i32)height, pixels, PUN_BITMAP_MASK, 0, resource_name);
     free(pixels);
 
-    font->char_width = char_width;
-    font->char_height = char_height;
+    font->tile_width  = tile_width;
+    font->tile_height = tile_height;
 }
 
 #endif
-
-#if PUNITY_FEATURE_FILEWATCHER
-
-void
-filewatcher_init()
-{
-    FileWatcher *F = &CORE->file_watcher;
-    memset(F, 0, sizeof(FileWatcher));
-    deque_init(&F->files, 8192);
-}
-
-void *
-filewatcher_add(const char *path, int path_length, void *extra, size_t extra_size, FileWatcherCallbackF *f)
-{
-    ASSERT(f);
-
-    FileWatcher *F = &CORE->file_watcher;
-
-    if (path_length == -1) {
-        path_length = strlen(path);
-        if (path_length >= PUN_PATH_MAX) {
-            return 0;
-        }
-    }
-    
-    FileWatcherEntry *entry = (FileWatcherEntry*)deque_push(&F->files, sizeof(FileWatcherEntry) + path_length + 1 + extra_size);
-    entry->path = (char*)(entry + 1);
-    entry->path_length = path_length;
-    memcpy(entry->path, path, path_length);
-    entry->path[path_length] = 0;
-    entry->extra_size = extra_size;
-    void *extra_ = entry->path + entry->path_length + 1;
-    if (extra) {
-        memcpy(extra_, extra, extra_size);
-    }
-    entry->f = f;
-
-    struct stat file_stat;
-    stat(path, &file_stat);
-    entry->time = file_stat.st_mtime;
-
-    F->count++;
-
-    return extra_;
-}
-
-DEQUE_WALK(filewatcher_check_file_)
-{
-    FileWatcher *F = (FileWatcher*)user;
-    FileWatcherEntry *entry = (FileWatcherEntry*)begin;
-    FileWatcherEntry *entry_end = (FileWatcherEntry*)end;
-    void *extra;
-    struct stat file_stat;
-    time_t time;
-    while (entry != entry_end) {
-        if (entry->f) {
-            stat(entry->path, &file_stat);
-            if (file_stat.st_mtime != entry->time) {
-                extra = entry->path + entry->path_length + 1;
-                entry->f(entry->path, entry->path_length, extra);
-                entry->time = file_stat.st_mtime;
-            }
-        } else {
-            F->count_inactive++;
-        }
-        entry = (FileWatcherEntry*)(((uint8_t*)entry) + filewatcherentry_size(entry));
-    }
-
-    return 1;
-}
-
-void
-filewatcher_step()
-{
-    FileWatcher *F = &CORE->file_watcher;
-    if (F->count && F->count != F->count_inactive) {
-        F->count_inactive = 0;
-        deque_walk(&F->files, filewatcher_check_file_, F);
-    }
-}
-
-#endif // PUNITY_FEATURE_FILEWATCHER
 
 //
 // Keys
@@ -3800,39 +3087,6 @@ void
 key_clear()
 {
     memset(&CORE->key_deltas, 0, PUN_KEYS_MAX);
-}
-
-//
-// World
-//
-
-#if PUNITY_FEATURE_WORLD
-
-//
-// State
-//
-
-void
-state_init(State *S, int state) {
-    memset(S, 0, sizeof(State));
-    S->next = state;
-    S->current = state;
-}
-
-void
-state_step(State *S)
-{
-    if (S->next != S->current) {
-        S->current = S->next;
-        S->next = S->current;
-        S->timer = 0;
-        S->frame = 0;
-    } else {
-        S->frame++;
-        if (S->timer != 0) {
-            S->timer--;
-        }
-    }
 }
 
 //
@@ -4403,8 +3657,6 @@ spatialhash_get_cell(SpatialHash *H, int x, int y)
     return 0;
 }
 
-#endif // PUNITY_FEATURE_WORLD
-
 //
 // Sound
 //
@@ -4643,7 +3895,6 @@ loop:;
         *it_buffer++ = (i16)clamp(s1, -32768, 32767);
         *it_buffer++ = (i16)clamp(s2, -32768, 32767);
     }
-// #undef MIX_CLIP_
 
     bank_end(&bank_state);
 }
@@ -4734,10 +3985,6 @@ punity_init(const char *args)
 
     CORE->background = color_make(0x00, 0x00, 0x00, 0x00);
 
-#if PUNITY_FEATURE_FILEWATCHER
-    filewatcher_init();
-#endif
-
     if (!init()) {
         return 1;
     }
@@ -4756,13 +4003,13 @@ void
 punity_frame_begin()
 {
     key_clear();
-    perf_from(&CORE->perf_frame);
+    CORE->time_frame_begin = perf_get();
 }
 
 void
 punity_frame_end()
 {
-    CORE->time_delta = perf_delta(&CORE->perf_frame);
+    CORE->time_delta = perf_get() - CORE->time_frame_begin;
     CORE->frame++;
     CORE->time += CORE->time_delta;
     CORE->key_text_length = 0;
@@ -4785,18 +4032,14 @@ void record_frame_();
 
 void
 punity_frame_step()
-{
-#if PUNITY_FEATURE_FILEWATCHER
-    filewatcher_step();
-#endif
-    
+{   
     BankState stack_state = bank_begin(CORE->stack);
-    perf_from(&CORE->perf_step);
+    f32 perf_step_begin = perf_get();
     drawlist_begin(CORE->draw_list);
     step();
     drawlist_end(CORE->draw_list);
     drawlist_clear(CORE->draw_list);
-    perf_to(&CORE->perf_step);
+    CORE->perf_step = perf_get() - perf_step_begin;
     bank_end(&stack_state);
 
 #if PUNITY_FEATURE_RECORDER
@@ -5650,7 +4893,6 @@ WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR command_line, int sho
 #ifdef PUNITY_OPENGL
     win32_gl_init_();
 #endif
-
 
     punity_init(command_line);
 

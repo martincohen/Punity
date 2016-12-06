@@ -1,5 +1,6 @@
 bin
 tutorial
+lib/punity-file-watcher.c
 lib/SDL
 lib/GL
 lib/lua51
