@@ -25,6 +25,11 @@
  * SOFTWARE.
  */
 
+// VS2013 Support.
+#if (_MSC_VER == 1800)
+#include <intrin.h>
+#define inline
+#endif
 
 #include <stdio.h>
 #include <stdint.h>
@@ -53,7 +58,11 @@
 // through OutputDebugStringA() API.
 //
 #ifndef PUNITY_DEBUG_MSVC
-#define PUNITY_DEBUG_MSVC 0
+    #ifdef _MSC_VER
+        #define PUNITY_DEBUG_MSVC 1
+    #else
+        #define PUNITY_DEBUG_MSVC 0
+    #endif
 #endif
 
 // Enables/disables SIMD acceleration for bitmap drawing.
@@ -530,7 +539,7 @@ void bitmap_draw_simd_(Bitmap *bitmap, i32 x, i32 y, i32 pivot_x, i32 pivot_y, R
 // Returns a tile rectangle in the bitmap based on `index`.
 Rect tile_get(Bitmap *bitmap, i32 index);
 // Draws a tile from bitmap (utilizing Bitmap's tile_width/tile_height).
-void tile_draw(Bitmap *bitmap, i32 x, i32 y, i32 index);
+void tile_draw(Bitmap *bitmap, i32 index, i32 x, i32 y);
 // Copies bitmap from `source` to `destination`
 void bitmap_copy(Bitmap *destination, Bitmap *source);
 // Calculates width and height of the text using current font.
@@ -806,10 +815,17 @@ typedef struct SceneTile_ SceneTile;
 typedef struct SceneEntity_ SceneEntity;
 
 typedef struct SceneEntity_ {
+    // Current rectangle occupied by entity.
+    // Read-only. Use `scene_entity_move_*` functions to move the entity.
     Rect box;
+    // Bitfield telling to which collision layer this entity belongs to.
+    i32 layer;
+    // Bitfield telling with which collision layers this entity can collide.
+    i32 mask;
+
+    // Internal
     i32 flags;
     f32 rx, ry;
-    i32 layer;
     void *next;
 #ifdef PUN_SCENE_ENTITY_CUSTOM
     PUN_SCENE_ENTITY_CUSTOM
@@ -818,8 +834,10 @@ typedef struct SceneEntity_ {
 
 typedef struct SceneTile_
 {
-    u8 flags;
+    // Bitfield telling to which collision layer this tile belongs to.
     i32 layer;
+    // `Edge_*` flag bitfield telling which sides of the tile are collidable.
+    u8 edges;
 #ifdef PUN_SCENE_TILE_CUSTOM
     PUN_SCENE_TILE_CUSTOM
 #endif
@@ -890,13 +908,13 @@ void scene_init(Scene *scene, i32 tile_size, i32 tilemap_width, i32 tilemap_heig
 void scene_clear(Scene *scene);
 #define SCENE_FOREACH_CALLBACK(name) bool name(Scene *scene, Rect *cast_box, Rect *item_box, i32 item_flags, SceneItem *item, void *data)
 typedef SCENE_FOREACH_CALLBACK(SceneForEachCallbackF);
-bool scene_foreach(Scene *scene, Rect rect, SceneForEachCallbackF *callback, void *data, i32 layer);
+bool scene_foreach(Scene *scene, Rect rect, SceneForEachCallbackF *callback, void *data, i32 mask);
 void scene_debug_tilemap(Scene *scene, u8 color, i32 z);
 void scene_debug_cells(Scene *scene, u8 color, i32 z);
 
 extern inline SceneTile *scene_tile(Scene *scene, i32 x, i32 y);
 
-SceneEntity *scene_entity_add(Scene *scene, Rect box, i32 layer);
+SceneEntity *scene_entity_add(Scene *scene, Rect box, i32 layer, i32 mask);
 void scene_entity_remove(Scene *scene, SceneEntity *entity);
 
 bool scene_entity_cast_x(Scene *scene, SceneEntity *entity, f32 dx, Collision *C);
@@ -1018,13 +1036,13 @@ extern Core *CORE;
 void panic_(const char *message, const char *description, const char *function, const char *file, int line);
 void log_(const char *function, const char *file, int line, const char *format, ...);
 
-#define LOG(message, ...) (log_(__FUNCTION__, __FILE__, __LINE__, message, __VA_ARGS__))
-#define FAIL(message, ...) (LOG(message, __VA_ARGS__), assert(0))
+#define LOG(message, ...) (log_(__FUNCTION__, __FILE__, __LINE__, message, ##__VA_ARGS__))
+#define FAIL(message, ...) (LOG(message, ##__VA_ARGS__), assert(0))
 
 // Asserts are to be used for unexpected program states.
 #define ASSERT_MESSAGE(expression, message, ...) \
     (void)( (!!(expression)) ||\
-            (panic_(message, #expression, __FUNCTION__, __FILE__, __LINE__, __VA_ARGS__), 0) )
+            (panic_(message, #expression, __FUNCTION__, __FILE__, __LINE__, ##__VA_ARGS__), 0) )
 
 #define ASSERT(expression) ASSERT_MESSAGE(expression, #expression)
 #ifdef PUNITY_DEBUG
@@ -1183,11 +1201,15 @@ extern KeyMapping KEY_MAPPING[];
 #if PUN_PLATFORM_OSX || PUN_PLATFORM_LINUX
 // TODO
 #else
+
 #define _WINSOCKAPI_
 #define _WIN32_WINNT 0x0501
 #define NOMINMAX
 // #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#ifdef _MSC_VER
+    #include <strsafe.h>
+#endif
 #include <dsound.h>
 #endif
 
@@ -1208,6 +1230,13 @@ extern KeyMapping KEY_MAPPING[];
 #include <gifw.h>
 #endif
 
+#if PUNITY_SIMD
+// SSE3
+// #include <pmmintrin.h>
+// SSSE3
+#include <tmmintrin.h>
+#endif
+
 #define PUNP_SOUND_DEFAULT_SOUND_VOLUME 0.9f
 #define PUNP_SOUND_DEFAULT_MASTER_VOLUME 0.9f
 
@@ -1224,44 +1253,8 @@ KeyMapping KEY_MAPPING[] = {
 };
 #undef PUN_KEY_MAPPING_ENTRY
 
-#if PUNITY_SIMD
-
-struct
-{
-    __m128i mm_00;
-    __m128i mm_FF;
-    __m128i mm_flip;
-    __m128i masks[16];
-}
-simd__ = {0};
-
-void
-simd_init__()
-{
-    simd__.mm_00 = _mm_set1_epi8(0x00);
-    simd__.mm_FF = _mm_set1_epi8(0xFF);
-    simd__.masks[ 0] = simd__.mm_00;
-    simd__.masks[ 1] = _mm_srli_si128(simd__.mm_FF, 15);
-    simd__.masks[ 2] = _mm_srli_si128(simd__.mm_FF, 14);
-    simd__.masks[ 3] = _mm_srli_si128(simd__.mm_FF, 13);
-    simd__.masks[ 4] = _mm_srli_si128(simd__.mm_FF, 12);
-    simd__.masks[ 5] = _mm_srli_si128(simd__.mm_FF, 11);
-    simd__.masks[ 6] = _mm_srli_si128(simd__.mm_FF, 10);
-    simd__.masks[ 7] = _mm_srli_si128(simd__.mm_FF,  9);
-    simd__.masks[ 8] = _mm_srli_si128(simd__.mm_FF,  8);
-    simd__.masks[ 9] = _mm_srli_si128(simd__.mm_FF,  7);
-    simd__.masks[10] = _mm_srli_si128(simd__.mm_FF,  6);
-    simd__.masks[11] = _mm_srli_si128(simd__.mm_FF,  5);
-    simd__.masks[12] = _mm_srli_si128(simd__.mm_FF,  4);
-    simd__.masks[13] = _mm_srli_si128(simd__.mm_FF,  3);
-    simd__.masks[14] = _mm_srli_si128(simd__.mm_FF,  2);
-    simd__.masks[15] = _mm_srli_si128(simd__.mm_FF,  1);
-
-    simd__.mm_flip = _mm_set_epi64x(0x0001020304050607, 0x08090a0b0c0d0e0f);
-}
-#endif
-
 Core *CORE = 0;
+
 
 //
 //
@@ -1306,6 +1299,46 @@ log_(const char *function, const char *file, int line, const char *format, ...)
     va_end(args);
 #endif
 }
+
+//
+// SIMD
+//
+
+#if PUNITY_SIMD
+struct
+{
+    __m128i mm_00;
+    __m128i mm_FF;
+    __m128i mm_flip;
+    __m128i masks[16];
+}
+simd__ = {0};
+
+void
+simd_init__()
+{
+    simd__.mm_00 = _mm_set1_epi8(0x00);
+    simd__.mm_FF = _mm_set1_epi8(0xFF);
+    simd__.masks[ 0] = simd__.mm_00;
+    simd__.masks[ 1] = _mm_srli_si128(simd__.mm_FF, 15);
+    simd__.masks[ 2] = _mm_srli_si128(simd__.mm_FF, 14);
+    simd__.masks[ 3] = _mm_srli_si128(simd__.mm_FF, 13);
+    simd__.masks[ 4] = _mm_srli_si128(simd__.mm_FF, 12);
+    simd__.masks[ 5] = _mm_srli_si128(simd__.mm_FF, 11);
+    simd__.masks[ 6] = _mm_srli_si128(simd__.mm_FF, 10);
+    simd__.masks[ 7] = _mm_srli_si128(simd__.mm_FF,  9);
+    simd__.masks[ 8] = _mm_srli_si128(simd__.mm_FF,  8);
+    simd__.masks[ 9] = _mm_srli_si128(simd__.mm_FF,  7);
+    simd__.masks[10] = _mm_srli_si128(simd__.mm_FF,  6);
+    simd__.masks[11] = _mm_srli_si128(simd__.mm_FF,  5);
+    simd__.masks[12] = _mm_srli_si128(simd__.mm_FF,  4);
+    simd__.masks[13] = _mm_srli_si128(simd__.mm_FF,  3);
+    simd__.masks[14] = _mm_srli_si128(simd__.mm_FF,  2);
+    simd__.masks[15] = _mm_srli_si128(simd__.mm_FF,  1);
+
+    simd__.mm_flip = _mm_set_epi64x(0x0001020304050607, 0x08090a0b0c0d0e0f);
+}
+#endif
 
 
 //
@@ -2799,7 +2832,7 @@ tile_get(Bitmap *bitmap, i32 index)
 }
 
 void
-tile_draw(Bitmap *bitmap, i32 x, i32 y, i32 index)
+tile_draw(Bitmap *bitmap, i32 index, i32 x, i32 y)
 {
     Rect rect = tile_get(bitmap, index);
     bitmap_draw(bitmap, x, y, 0, 0, &rect);
@@ -3152,13 +3185,13 @@ scene_debug_tilemap(Scene *S, u8 color, i32 z)
     int x, y;
     for (y = 0; y != S->tile_rect.max_y; ++y) {
         for (x = 0; x != S->tile_rect.max_x; ++x) {
-            if (tile->flags) {
+            if (tile->edges) {
                 frame_draw_push(rect_make_size(
                     x * S->tile_size,
                     y * S->tile_size,
                     S->tile_size,
                     S->tile_size
-                ), color, tile->flags, 0, z);
+                ), color, tile->edges, 0, z);
             }
             tile++;
         }
@@ -3194,7 +3227,7 @@ scene_debug_cells(Scene *S, u8 color, i32 z)
 }
 
 bool
-scene_foreach(Scene *S, Rect rect, SceneForEachCallbackF *callback, void *data, i32 layer)
+scene_foreach(Scene *S, Rect rect, SceneForEachCallbackF *callback, void *data, i32 mask)
 {
     Rect range;
     i32 cx, cy, ci, tx, ty;
@@ -3216,10 +3249,10 @@ scene_foreach(Scene *S, Rect rect, SceneForEachCallbackF *callback, void *data, 
             for (cx = range.min_x; cx != range.max_x; ++cx)
             {
                 item.tile = &tile[cx];
-                if (item.tile->flags && (layer & item.tile->layer) != 0) {
+                if (item.tile->edges && (mask & item.tile->layer) != 0) {
                     box = rect_make_size(cx * S->tile_size, cy * S->tile_size,
                         S->tile_size, S->tile_size);
-                    if (callback(S, &rect, &box, item.tile->flags | EntityFlag_Tile, &item, data)) {
+                    if (callback(S, &rect, &box, item.tile->edges | EntityFlag_Tile, &item, data)) {
                         return true;
                     }
                 }
@@ -3238,7 +3271,7 @@ scene_foreach(Scene *S, Rect rect, SceneForEachCallbackF *callback, void *data, 
                 for (ci = 0; ci < cell->items_count; ++ci, ++entity)
                 {
                     item.entity = *entity;
-                    if ((layer & item.entity->layer) != 0 && callback(S, &rect, &item.entity->box, item.entity->flags, &item, data)) {
+                    if ((mask & item.entity->layer) != 0 && callback(S, &rect, &item.entity->box, item.entity->flags, &item, data)) {
                         return true;
                     }
                 }
@@ -3350,7 +3383,7 @@ scene_entity_cast_xy_(Scene *S, SceneEntity *A, f32 dx, f32 dy, Collision *C, Sc
 
     C->box = rect_dilate_(A->box, C->mx, C->my);
     // printf("-- foreach\n");
-    scene_foreach(S, C->box, f, C, A->layer);
+    scene_foreach(S, C->box, f, C, A->mask);
 
     return C->B.type == SceneItem_None;
 }
@@ -3407,7 +3440,7 @@ scene_entity_move_y(Scene *S, SceneEntity *A, f32 dy, Collision *C)
 }
 
 SceneEntity *
-scene_entity_add(Scene *S, Rect box, i32 layer)
+scene_entity_add(Scene *S, Rect box, i32 layer, i32 mask)
 {
     ASSERT(S->initialized);
 
@@ -3426,6 +3459,7 @@ scene_entity_add(Scene *S, Rect box, i32 layer)
     entity->box = box;
     entity->flags = Edge_All;
     entity->layer = layer;
+    entity->mask = mask;
 
     Rect range = scene_cell_range_for_rect(entity->box, S->cell_size, 0);
     spatialhash_add(&S->hash, range, entity);
@@ -3773,6 +3807,31 @@ sound_play(Sound *sound)
         source->next = punp_audio_source_playback;
         punp_audio_source_playback = source;
     }
+}
+
+void
+sound_stop(Sound *sound)
+{
+    if (!sound->sources_count) {
+        return;
+    }
+
+    PunPAudioSource *next;
+    PunPAudioSource **it = &punp_audio_source_playback;
+    while (*it)
+    {
+        if ((*it)->sound == sound) {
+            next = (*it)->next;
+            (*it)->next = punp_audio_source_pool;
+            punp_audio_source_pool = *it;
+            sound->sources_count--;
+            *it = next;
+        } else {
+            it = &(*it)->next;
+        }
+    }
+
+    ASSERT(sound->sources_count == 0);
 }
 
 // Called from platform to fill in the audio buffer.
@@ -4315,8 +4374,8 @@ typedef HGLRC WINAPI wglCreateContextAttribsARBF(HDC hDC,
     HGLRC hShareContext,
     const int *attribList);
 
-extern wglChoosePixelFormatARBF *wglChoosePixelFormatARB = 0;
-extern wglCreateContextAttribsARBF *wglCreateContextAttribsARB = 0;
+wglChoosePixelFormatARBF *wglChoosePixelFormatARB = 0;
+wglCreateContextAttribsARBF *wglCreateContextAttribsARB = 0;
 
 #define WGL_DRAW_TO_WINDOW_ARB                  0x2001
 #define WGL_ACCELERATION_ARB                    0x2003

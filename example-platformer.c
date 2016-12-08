@@ -8,6 +8,9 @@
 #define PUNITY_IMPLEMENTATION
 #include "punity.h"
 
+#define TILED_IMPLEMENTATION
+#include "punity-tiled.h"
+
 typedef struct
 {
     SceneEntity *E;
@@ -46,6 +49,7 @@ player_init(Player *P, int x, int y)
 {
     P->E = scene_entity_add(&GAME->scene,
         rect_make_size(x, y, 8, 8),
+        SceneLayer_Player,
         SceneLayer_Player | SceneLayer_Ground);
     P->jump = 0;
     P->fall = 1;
@@ -164,12 +168,14 @@ init()
                 break;
 
             default:
-                tile->flags = Edge_Top;
+                tile->edges = Edge_Top;
                 tile->layer = SceneLayer_Ground;
                 break;
             }
         }
     }
+
+
 
     return 1;
 }

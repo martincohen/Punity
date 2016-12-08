@@ -67,7 +67,7 @@ if "%compiler%"=="cl" (
 	rem MT for statically linked CRT, MD for dynamically linked CRT
 	set win_runtime_lib=MD
 	set common_c=..\!target_c! /Fe!target!.exe -nologo -D_WIN32_WINNT=0x0501 -D!runtime!=1 -D!platform!=1 -D!target_flag!=1 -TC -FC -EHa- -I..\ -I..\lib
-	set common_l=/OPT:REF notelemetry.obj user32.lib gdi32.lib winmm.lib !target!.res
+	set common_l=/OPT:REF user32.lib gdi32.lib winmm.lib !target!.res
 
 	if "%target%"=="lunity/lunity" (
 		if "%luajit%"=="1" (
@@ -120,8 +120,8 @@ if "%compiler%"=="cl" (
 
 ) else if "%compiler%"=="gcc" (
 
-	set common_c=!target_c! -std=gnu99 -o ./bin/!target!.exe ./bin/!target_rc!.o -D!runtime!=1 -D!platform!=1 -D!target_flag!=1 -D_WIN32_WINNT=0x0501 -I./lib -I./lib/mingw -I.
-	set common_l=-luser32 -lgdi32 -lwinmm
+	set common_c=!target_c! -std=gnu99 -mssse3 -o ./bin/!target!.exe ./bin/!target_rc!.o -D!runtime!=1 -D!platform!=1 -D!target_flag!=1 -D_WIN32_WINNT=0x0501 -I./lib -I./lib/mingw -I.
+	set common_l=-luser32 -lgdi32 -lwinmm -lopengl32
 	if "%target%"=="lunity/lunity" (
 		if "%luajit%"=="1" (
 			set common_c=./lib/stb_vorbis.c ./lib/luajit/src/luajit.o !common_c! -I./lib/luajit/src
