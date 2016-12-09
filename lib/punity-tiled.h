@@ -3,11 +3,6 @@
 
 #include "json.h"
 
-// Limitations:
-// - Only axis-aligned rectangles and images are read from objects layer.
-// - No custom properties for tilesets.
-//   We're 
-
 typedef struct Tiled Tiled;
 typedef struct TiledCacheEntry TiledCacheEntry;
 typedef struct TiledScene TiledScene;
@@ -266,7 +261,49 @@ tiled_setup_tile_(TiledLoader_ *L, int gid, Tile *tile)
 static void
 tiled_load_meta_(TiledLoader_ *L, int type, void *data, json_value *properties)
 {
-    if (properties && L->meta_callback) {
+    if (!properties) {
+        return;
+    }
+    
+    json_value *v;
+    switch (type)
+    {
+    case TiledType_Tile:
+        Tile *tile = (Tile*)data;
+        v = json_find_value(properties, "edges");
+        if (v && v->type == json_string)  {
+            for (char *it = v->string.ptr; *it; ++it) {
+                switch (*it)
+                {
+                case 'T': case 't':
+                    tile->flags |= Edge_Top;
+                    break;
+                case 'B': case 'b':
+                    tile->flags |= Edge_Bottom;
+                    break;
+                case 'L': case 'l':
+                    tile->flags |= Edge_Left;
+                    break;
+                case 'R': case 'r':
+                    tile->flags |= Edge_Right;
+                    break;
+                }
+            }
+#ifdef TILEDTILE_DEFAULT_LAYER
+            if (tile->flags != 0) {
+                tile->layer = TILEDTILE_DEFAULT_LAYER;
+            }
+#endif
+        }
+
+        v = json_find_value(properties, "layer");
+        if (v && v->type == json_integer) {
+            tile->layer = v->integer;
+        }
+        break;
+    }
+
+    if (L->meta_callback) {
         L->meta_callback(type, data, properties->object.values, properties->object.length, L->meta_callback_user);
     }
 }
@@ -411,6 +448,7 @@ tiled_load_tilemap_(TiledLoader_ *L, json_value *value)
     {
         if (strcmp(it->name, "data") == 0) {
             item->tilemap.tiles = bank_push_t(L->storage, Tile, it->value->array.length);
+            memset(item->tilemap.tiles, 0, sizeof(Tile) * it->value->array.length);
             Tile *tile = item->tilemap.tiles;
             Tile *tiled_tile;
             json_value **value_tile = it->value->array.values;
@@ -459,7 +497,7 @@ tiled_load_objects_(TiledLoader_ *L, json_value *value)
 
         const char *name = 0;
         size_t name_length = 0;
-        json_value *v = json_find_value(value, "name");
+        json_value *v = json_find_value(*value_object, "name");
         if (v && v->type == json_string) {
             name = v->string.ptr;
             name_length = v->string.length;

@@ -1291,10 +1291,10 @@ panic_(const char *message, const char *expression, const char *function, const 
     char e[4096];
     char *e_it = e;
     char *e_end = e + array_count(e) - 2;
-    expression = "hello %f world";
+    // expression = "hello %f world";
     while (e_it < e_end && expression) {
         if (*expression == '%') {
-            *e_it++ = '\'';
+            *e_it++ = '%';
         }
         *e_it++ = *expression++;
     }
@@ -3180,7 +3180,7 @@ scene_init(Scene *S, i32 cell_size)
     S->entities_count = 0;
 
     // TODO: Use pow 2 bucket sizes and do & instead of %?
-    
+    spatialhash_init(&S->hash, 5003);
     deque_init(&S->entities_deque, sizeof(SceneEntity) * 256);
 }
 
@@ -3454,8 +3454,9 @@ scene_entity_add(Scene *S, Rect box, i32 layer, i32 mask)
     SceneEntity *entity = S->entities_pool;
     if (entity) {
         S->entities_pool = entity->next;
-        
-        entity = deque_push_t(&S->entities_deque, SceneEntity);    }
+    } else {
+        entity = deque_push_t(&S->entities_deque, SceneEntity);
+    }
     memset(entity, 0, sizeof(SceneEntity));
 
     entity->next = S->entities;

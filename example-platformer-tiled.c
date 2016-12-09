@@ -8,13 +8,6 @@
 #define PUNITY_IMPLEMENTATION
 #include "punity.h"
 
-enum {
-    SceneLayer_Ground = 1 << 0,
-    SceneLayer_Player = 1 << 1,
-};
-
-#define TILEDTILE_DEFAULT_LAYER SceneLayer_Ground
-
 #define TILED_IMPLEMENTATION
 #include "punity-tiled.h"
 
@@ -36,11 +29,17 @@ typedef struct Game_
     Sound sound_jump;
     Sound sound_land;
 
-    Player player;
+    Player player1;
+    Player player2;
 }
 Game;
 
 static Game *GAME = 0;
+
+enum {
+    SceneLayer_Ground = 1 << 0,
+    SceneLayer_Player = 1 << 1,
+};
 
 //
 // Player
@@ -114,7 +113,7 @@ scene_setup(TiledScene *tiled_scene)
     // Set this tilemap as base for collision detection.
     // GAME->scene.tilemap = &tiledscene_find(tiled_scene, "base", 0)->tilemap;
     // Set player from `player` rectangle object.
-    // player_init(&GAME->player, tiledscene_find(tiled_scene, "player", 0)->item);
+    // player_init(&GAME->player1, tiledscene_find(tiled_scene, "player", 0)->item);
 
     // MORE ADVANCED SETUP:
     // Initialize entities.
@@ -125,13 +124,13 @@ scene_setup(TiledScene *tiled_scene)
         switch (item->type)
         {
         case TiledType_TileMap:
-            if (strcmp(item->name, "base") == 0) {
+            if (strcmp(item->name, "base")) {
                 GAME->scene.tilemap = &item->tilemap;
             }
             break;
         case TiledType_Rectangle:
             if (strcmp(item->name, "player") == 0) {
-                player_init(&GAME->player, item);
+                player_init(&GAME->player1, item);
             }
             break;
         case TiledType_Image:
@@ -193,10 +192,24 @@ step()
         window_fullscreen_toggle();
     }
 
-    player_step(&GAME->player,
+    player_step(&GAME->player1,
         key_down(KEY_LEFT), key_down(KEY_RIGHT), key_pressed(KEY_UP));
 
+    player_step(&GAME->player2,
+        key_down(KEY_A), key_down(KEY_D), key_pressed(KEY_W));
+
     tilemap_draw(GAME->scene.tilemap);
+    // // Draw tilemap.
+    // int *t = tiles;
+    // for (int y = 0; y != 16; ++y) {
+    //     for (int x = 0; x != 16; ++x, ++t) {
+    //         switch (*t) {
+    //         case 0: case 88: case 89: break;
+    //         default:
+    //             tile_draw_push(&GAME->tileset, x * 8, y * 8, *t, 4);
+    //         }
+    //     }
+    // }
     
     char buf[256];
     sprintf(buf, "%.3fms %.3f", CORE->perf_step * 1e3, CORE->time_delta);

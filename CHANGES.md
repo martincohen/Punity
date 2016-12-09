@@ -1,3 +1,9 @@
+# Version 2.3
+
+- Update `example-platformer` to use Tiled maps.
+- Fixed bug in `panic_` (used by ASSERT and ASSERT_MESSAGE).
+- Fixed bug in `scene_entity_add` caused by misedits in Sublime. GAH!
+
 # Version 2.2
 
 - Added tiled format support (still experimental; see example-tiled).
