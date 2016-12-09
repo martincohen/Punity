@@ -1,0 +1,6 @@
+icon.ico ICON "res\\icon.ico"
+font.png RESOURCE "res\\font-4x7.png"
+
+tileset.png RESOURCE "res\\example-platformer\\tileset.png"
+map_test.json RESOURCE "res\\example-platformer\\map_test.json"
+tileset.json RESOURCE "res\\example-platformer\\tileset.json"

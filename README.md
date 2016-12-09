@@ -42,25 +42,26 @@ One of the most important parts of Punity is that it's made to be changed and ed
 
 **Note that the project is still in development.** More documentation, features, examples and fixes is underway.
 
-- **More drawing functions** very soon (`draw_frame()`).
-- **Even more drawing functions** a bit later (`draw_line()`, `draw_circle()`, etc.).
-- **Tile maps** (with support of loading simple Tiled format and with customizable Tile elements).
 - **SDL platform layer** in an optional separate file `punity_sdl.c` with additional pre-made build scripts (Windows, Linux, Mac OS X, iOS, Android, Raspberry Pi, [Dingux](http://wiki.dingoonity.org/index.php?title=Dingux:About), etc.). This would introduce a dependency on SDL2, though.
 
-# Documenation
+# Documentation
 
 Please, see the [documentation in Wiki](https://github.com/martincohen/Punity/wiki).
 
 ## Files
 
-- `mingw/_mingw_unicode.h` & `mingw/dsound.h` - Provided for your convenience to be able to build with default MinGW installation. This file is taken from MinGW-W64 project.
 - `lib/stb_image.h` - Optional library to load images.
 - `lib/stb_vorbis.c` - Optional library to load ogg audio files.
 - `lib/gifw.h` - Optional library to record and save GIFs.
 - `build.bat` - MSVC and MinGW build batch file.
-- `config.h` - Example configuration file that customizes Punity. Can be switched off with using `#define PUN_CONFIG 0`
-- `main.c` - Minimal application using Punity.
+- `main.c` - Minimal template for jump-start game development.
+- `main.rc` - Part of the template.
 - `punity.h` - Punity's header/implementation file.
+
+In case you use MinGW, then you'll also need these:
+
+- `mingw/_mingw_unicode.h` & `mingw/dsound.h` - Provided for your convenience to be able to build with default MinGW installation. This file is taken from MinGW-W64 project.
+
 
 # Contributors
 

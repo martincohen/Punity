@@ -24,6 +24,7 @@ typedef struct Game_
 {
     Bitmap font;
     Scene scene;
+    TiledScene scene1;
     Bitmap tileset;
     Sound sound_jump;
     Sound sound_land;
@@ -45,10 +46,10 @@ enum {
 //
 
 void
-player_init(Player *P, int x, int y)
+player_init(Player *P, TiledItem *item)
 {
     P->E = scene_entity_add(&GAME->scene,
-        rect_make_size(x, y, 8, 8),
+        item->rect,
         SceneLayer_Player,
         SceneLayer_Player | SceneLayer_Ground);
     P->jump = 0;
@@ -102,29 +103,47 @@ player_step(Player *P, int key_left, int key_right, int key_jump)
 }
 
 //
-// Game
+// Scene
 //
 
-#define _ 0
-static int tiles[] = {
-        _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,
-        _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,
-        _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,
-        _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,
-        _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,
-        _,  _,  _,  _,  _,  _,  _,  _,  _, 89,  _,  _,  _,  _,  _,  _,
-        _,  _,  _,  _,  _,  _,  9, 10, 11, 12, 13,  _,  _,  _,  _,  _,
-        _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,
-        _,  _,  _,  _,  _,  7,  _,  6,  _,  _,  _,  _,  _,  _,  _,  _,
-        _,  _,  _,  1,  3,  2,  4,  3,  5,  _, 22, 23,  _,  _,  _,  _,
-        _,  _,  _,  _,  _,  _,  _,  _,  _,  _, 30, 31,  _,  _,  _,  _,
-        _,  _,  _,  _,  _,  _,  _,  _,  _,  1,  4,  3,  5,  _,  _,  _,
-        _,  _,  _,  _, 88,  _,  _, 15,  _,  _,  _,  _,  _,  _,  _,  _,
-        _,  _,  _,  1,  2,  3,  4,  2,  3,  4,  2,  3,  5,  _,  _,  _, 
-        _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,
-        _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,
-};
-#undef _
+int
+scene_setup(TiledScene *tiled_scene)
+{    
+    // EXAMPLE FOR QUICK SETUP:
+    // Set this tilemap as base for collision detection.
+    // GAME->scene.tilemap = &tiledscene_find(tiled_scene, "base", 0)->tilemap;
+    // Set player from `player` rectangle object.
+    // player_init(&GAME->player1, tiledscene_find(tiled_scene, "player", 0)->item);
+
+    // MORE ADVANCED SETUP:
+    // Initialize entities.
+    for (TiledItem *item = tiled_scene->items;
+         item != tiled_scene->items_end;
+         item = tileditem_next(item))
+    {
+        switch (item->type)
+        {
+        case TiledType_TileMap:
+            if (strcmp(item->name, "base")) {
+                GAME->scene.tilemap = &item->tilemap;
+            }
+            break;
+        case TiledType_Rectangle:
+            if (strcmp(item->name, "player") == 0) {
+                player_init(&GAME->player1, item);
+            }
+            break;
+        case TiledType_Image:
+            break;
+        }
+    }
+
+    return 1;
+}
+
+//
+// Game
+//
 
 int
 init()
@@ -132,7 +151,6 @@ init()
     CORE->window.width = 16 * 8;
     CORE->window.height = 16 * 8;
     CORE->window.scale = 5;
-
 
     GAME = bank_push_t(CORE->storage, Game, 1);
 
@@ -146,36 +164,17 @@ init()
     GAME->tileset.tile_width  = 8;
     GAME->tileset.tile_height = 8;
 
-    scene_init(&GAME->scene, 8, 16, 16, 16);
-    
-    int *t = tiles;
-    for (int y = 0; y != 16; ++y) {
-        for (int x = 0; x != 16; ++x, ++t) {
-            SceneTile *tile = scene_tile(&GAME->scene, x, y);
-            switch (*t)
-            {
-            // Empty tile and decorations.
-            case  0:
-            case  6: case  7: case 14: case 15:
-            case 22: case 23: case 30: case 31:
-                break;
-            case 88:
-                player_init(&GAME->player1, x * 8, y * 8);
-                break;
-            
-            case 89:
-                player_init(&GAME->player2, x * 8, y * 8);
-                break;
+    // Load scenes.
+    Tiled tiled;
+    tiled_init(&tiled);
+    tiledscene_load_resource(&tiled, &GAME->scene1, "map1.json", 0, 0);
+    tiled_free(&tiled);
 
-            default:
-                tile->edges = Edge_Top;
-                tile->layer = SceneLayer_Ground;
-                break;
-            }
-        }
-    }
+    // Initialize game scene.
+    scene_init(&GAME->scene, 16);
 
-
+    // Start at first scene.
+    scene_setup(&GAME->scene1);
 
     return 1;
 }
@@ -199,17 +198,18 @@ step()
     player_step(&GAME->player2,
         key_down(KEY_A), key_down(KEY_D), key_pressed(KEY_W));
 
-    // Draw tilemap.
-    int *t = tiles;
-    for (int y = 0; y != 16; ++y) {
-        for (int x = 0; x != 16; ++x, ++t) {
-            switch (*t) {
-            case 0: case 88: case 89: break;
-            default:
-                tile_draw_push(&GAME->tileset, x * 8, y * 8, *t, 4);
-            }
-        }
-    }
+    tilemap_draw(GAME->scene.tilemap);
+    // // Draw tilemap.
+    // int *t = tiles;
+    // for (int y = 0; y != 16; ++y) {
+    //     for (int x = 0; x != 16; ++x, ++t) {
+    //         switch (*t) {
+    //         case 0: case 88: case 89: break;
+    //         default:
+    //             tile_draw_push(&GAME->tileset, x * 8, y * 8, *t, 4);
+    //         }
+    //     }
+    // }
     
     char buf[256];
     sprintf(buf, "%.3fms %.3f", CORE->perf_step * 1e3, CORE->time_delta);

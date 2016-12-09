@@ -1,3 +1,15 @@
+# Version 2.2
+
+- Added tiled format support (still experimental; see example-tiled).
+- Added `Tile` and `TileMap` structs to join Tiled format and collision detection in scene.
+- Removed tilemap from scene.
+- OpenGL canvas now centers canvas correctly in fullscreen.
+- Getting system keys now works (Alt+F4 is still reserved for system).
+- Fixed MinGW/GCC support.
+- Added `sound_stop` to stop all instances of playing sound.
+- Changed signature of `tile_draw` (index is now second argument).
+- Added support for Visual Studio 2013 (build with 64-bit version of compiler).
+
 # Version 2.1
 
 - Major cleanup of stuff not essential, or rarely used, or just plain stupid.

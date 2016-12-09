@@ -808,10 +808,48 @@ void spatialhash_update(SpatialHash *H, void *item, Rect old_range, Rect new_ran
 SpatialCell *spatialhash_get_cell(SpatialHash *H, int x, int y);
 
 //
+// Tilemap
+//
+
+typedef struct
+{
+    Bitmap *tileset;
+    i32 index;
+    // Used by collision system.
+    // Lowest 4 bits are reserved for `Edge_*` flags.
+    i32 flags;
+    // Used by collision system.
+    i32 layer;
+#ifdef PUN_TILE_CUSTOM
+    PUN_TILE_CUSTOM
+#endif
+}
+Tile;
+
+typedef struct
+{
+    Tile *tiles;
+    i32 width;
+    i32 height;
+    i32 tile_width;
+    i32 tile_height;
+#ifdef PUN_TILEMAP_CUSTOM
+    PUN_TILEMAP_CUSTOM
+#endif
+}
+TileMap;
+
+void tilemap_init(TileMap *tilemap, i32 width, i32 height, i32 tile_width, i32 tile_height);
+bool tilemap_get_draw_range(TileMap *tilemap, Rect *range);
+void tilemap_draw(TileMap *tilemap);
+
+
+
+
+//
 // Collider
 //
 
-typedef struct SceneTile_ SceneTile;
 typedef struct SceneEntity_ SceneEntity;
 
 typedef struct SceneEntity_ {
@@ -832,17 +870,6 @@ typedef struct SceneEntity_ {
 #endif
 } SceneEntity;
 
-typedef struct SceneTile_
-{
-    // Bitfield telling to which collision layer this tile belongs to.
-    i32 layer;
-    // `Edge_*` flag bitfield telling which sides of the tile are collidable.
-    u8 edges;
-#ifdef PUN_SCENE_TILE_CUSTOM
-    PUN_SCENE_TILE_CUSTOM
-#endif
-} SceneTile;
-
 enum {
     SceneItem_None = 0,
     SceneItem_Entity,
@@ -853,7 +880,7 @@ typedef struct SceneItem_ {
     i32 type;
     union {
         SceneEntity *entity;
-        SceneTile *tile;
+        Tile *tile;
         void *ptr;
     };
 } SceneItem;
@@ -886,9 +913,10 @@ typedef struct Scene_
 {
     int initialized;
 
-    // TODO: Rename to entities.
-    Deque deque_entities;
-
+    // Optional tilemap for tile-based collisions.
+    TileMap *tilemap;
+    
+    Deque entities_deque;
     SceneEntity *entities;
     SceneEntity *entities_pool;
     i32 entities_count;
@@ -896,23 +924,19 @@ typedef struct Scene_
     SpatialHash hash;
 
     Collision collision;
-
-    i32 tile_size;
-    Rect tile_rect;
-    SceneTile *tiles;
 }
 Scene;
 
 // Initializes the world.
-void scene_init(Scene *scene, i32 tile_size, i32 tilemap_width, i32 tilemap_height, i32 cell_size);
-void scene_clear(Scene *scene);
+void scene_init(Scene *scene, i32 cell_size);
+
+// Iterates over all entities and tiles in given `rect`.
 #define SCENE_FOREACH_CALLBACK(name) bool name(Scene *scene, Rect *cast_box, Rect *item_box, i32 item_flags, SceneItem *item, void *data)
 typedef SCENE_FOREACH_CALLBACK(SceneForEachCallbackF);
 bool scene_foreach(Scene *scene, Rect rect, SceneForEachCallbackF *callback, void *data, i32 mask);
+
 void scene_debug_tilemap(Scene *scene, u8 color, i32 z);
 void scene_debug_cells(Scene *scene, u8 color, i32 z);
-
-extern inline SceneTile *scene_tile(Scene *scene, i32 x, i32 y);
 
 SceneEntity *scene_entity_add(Scene *scene, Rect box, i32 layer, i32 mask);
 void scene_entity_remove(Scene *scene, SceneEntity *entity);
@@ -1033,8 +1057,9 @@ Core;
 
 extern Core *CORE;
 
-void panic_(const char *message, const char *description, const char *function, const char *file, int line);
+void panic_(const char *message, const char *description, const char *function, const char *file, int line, ...);
 void log_(const char *function, const char *file, int line, const char *format, ...);
+void logv_(const char *function, const char *file, int line, const char *format, va_list args);
 
 #define LOG(message, ...) (log_(__FUNCTION__, __FILE__, __LINE__, message, ##__VA_ARGS__))
 #define FAIL(message, ...) (LOG(message, ##__VA_ARGS__), assert(0))
@@ -1261,43 +1286,63 @@ Core *CORE = 0;
 //
 
 void
-panic_(const char *message, const char *description, const char *function, const char *file, int line)
+panic_(const char *message, const char *expression, const char *function, const char *file, int line, ...)
 {
-    LOG("ASSERTION FAILED:\n"
-                   "\t    message: %s\n"
-                   "\tdescription: %s\n"
-                   "\t   function: %s\n"
-                   "\t       file: %s\n"
-                   "\t       line: %d\n",
+    char e[4096];
+    char *e_it = e;
+    char *e_end = e + array_count(e) - 2;
+    expression = "hello %f world";
+    while (e_it < e_end && expression) {
+        if (*expression == '%') {
+            *e_it++ = '\'';
+        }
+        *e_it++ = *expression++;
+    }
+    *e_it = 0;
 
-           message,
-           description,
-           function,
-           file,
-           line);
+    char m[4096];
+    snprintf(
+        m, array_count(m),
+        "ASSERTION FAILED:\n"
+        "\t    message: %s\n"
+        "\t expression: %s\n"
+        "\t   function: %s\n"
+        "\t       file: %s\n"
+        "\t       line: %d\n",
+        message,
+        e,
+        function,
+        file,
+        line);
+
+    va_list args;
+    va_start(args, line);
+    logv_(function, file, line, m, args);
+    va_end(args);
 
     assert(0);
     // *(int *)0 = 0;
 }
 
 void
-log_(const char *function, const char *file, int line, const char *format, ...)
+logv_(const char *function, const char *file, int line, const char *format, va_list args)
 {
 #if PUNITY_DEBUG_MSVC
-    char m[256];
-    
-    va_list args;
-    va_start(args, format);
-    StringCchVPrintfA(m, array_count(m), format, args);
-    va_end(args);
-
+    char m[4096];
+    vsnprintf(m, array_count(m), format, args);
     OutputDebugStringA(m);
 #else
+    vprintf(format, args);
+#endif
+}
+
+void
+log_(const char *function, const char *file, int line, const char *format, ...)
+{
     va_list args;
     va_start(args, format);
-    vprintf(format, args);
+    logv_(function, file, line, format, args);
     va_end(args);
-#endif
 }
 
 //
@@ -3127,7 +3172,7 @@ key_clear()
 //
 
 void
-scene_init(Scene *S, i32 tile_size, i32 tile_width, i32 tile_height, i32 cell_size)
+scene_init(Scene *S, i32 cell_size)
 {
     memset(S, 0, sizeof(Scene));
     S->initialized = 1;
@@ -3135,19 +3180,8 @@ scene_init(Scene *S, i32 tile_size, i32 tile_width, i32 tile_height, i32 cell_si
     S->entities_count = 0;
 
     // TODO: Use pow 2 bucket sizes and do & instead of %?
-    spatialhash_init(&S->hash, 5003);
-    deque_init(&S->deque_entities, sizeof(SceneEntity) * 256);
-    // deque_init(&S->deque_tiles, sizeof(WorldTileBlock) * 16);
-
-    if (tile_size)
-    {
-        usize size = tile_width * tile_height;
-        S->tiles = (SceneTile*)virtual_alloc(0, sizeof(SceneTile) * size);
-        memset(S->tiles, 0, sizeof(SceneTile) * size);
-        S->tile_size = tile_size;
-        S->tile_rect.max_x = tile_width;
-        S->tile_rect.max_y = tile_height;
-    }
+    
+    deque_init(&S->entities_deque, sizeof(SceneEntity) * 256);
 }
 
 static inline Rect
@@ -3167,35 +3201,6 @@ scene_cell_range_for_rect(Rect rect, f32 cell_size, Rect *clip)
     }
     
     return result;
-}
-
-SceneTile *
-scene_tile(Scene *S, i32 x, i32 y)
-{
-    if (S->tiles == 0 || x < 0 || y < 0 || x >= S->tile_rect.max_x || y >= S->tile_rect.max_y) {
-        return 0;
-    }
-    return &S->tiles[x + (y * S->tile_rect.max_x)];
-}
-
-void
-scene_debug_tilemap(Scene *S, u8 color, i32 z)
-{
-    SceneTile *tile = S->tiles;
-    int x, y;
-    for (y = 0; y != S->tile_rect.max_y; ++y) {
-        for (x = 0; x != S->tile_rect.max_x; ++x) {
-            if (tile->edges) {
-                frame_draw_push(rect_make_size(
-                    x * S->tile_size,
-                    y * S->tile_size,
-                    S->tile_size,
-                    S->tile_size
-                ), color, tile->edges, 0, z);
-            }
-            tile++;
-        }
-    }
 }
 
 void
@@ -3233,31 +3238,32 @@ scene_foreach(Scene *S, Rect rect, SceneForEachCallbackF *callback, void *data, 
     i32 cx, cy, ci, tx, ty;
     int flags;
 
-    SceneTile *tile;
+    Tile *tile;
     SpatialCell *cell;
     SceneEntity **entity;
     Rect box;
     SceneEntity *tile_entity;
 
     SceneItem item;
-    if (S->tiles)
+    if (S->tilemap)
     {
         item.type = SceneItem_Tile;
-        range = scene_cell_range_for_rect(rect, S->tile_size, &S->tile_rect);
-        SceneTile *tile = &S->tiles[range.min_y * S->tile_rect.max_x];
+        Rect tile_rect = rect_make_size(0, 0, S->tilemap->width, S->tilemap->height);
+        range = scene_cell_range_for_rect(rect, S->tilemap->tile_width, &tile_rect);
+        Tile *tile = &S->tilemap->tiles[range.min_y * S->tilemap->width];
         for (cy = range.min_y; cy != range.max_y; ++cy) {
             for (cx = range.min_x; cx != range.max_x; ++cx)
             {
                 item.tile = &tile[cx];
-                if (item.tile->edges && (mask & item.tile->layer) != 0) {
-                    box = rect_make_size(cx * S->tile_size, cy * S->tile_size,
-                        S->tile_size, S->tile_size);
-                    if (callback(S, &rect, &box, item.tile->edges | EntityFlag_Tile, &item, data)) {
+                if ((item.tile->flags & Edge_All) && (mask & item.tile->layer) != 0) {
+                    box = rect_make_size(cx * S->tilemap->tile_width, cy * S->tilemap->tile_height,
+                        S->tilemap->tile_width, S->tilemap->tile_height);
+                    if (callback(S, &rect, &box, (item.tile->flags & Edge_All) | EntityFlag_Tile, &item, data)) {
                         return true;
                     }
                 }
             }
-            tile += S->tile_rect.max_x;
+            tile += S->tilemap->width;
         }
     }
 
@@ -3448,9 +3454,8 @@ scene_entity_add(Scene *S, Rect box, i32 layer, i32 mask)
     SceneEntity *entity = S->entities_pool;
     if (entity) {
         S->entities_pool = entity->next;
-    } else {
-        entity = deque_push_t(&S->deque_entities, SceneEntity);
-    }
+        
+        entity = deque_push_t(&S->entities_deque, SceneEntity);    }
     memset(entity, 0, sizeof(SceneEntity));
 
     entity->next = S->entities;
@@ -3689,6 +3694,68 @@ spatialhash_get_cell(SpatialHash *H, int x, int y)
         return cell;
     }
     return 0;
+}
+
+//
+// Tilemap
+//
+
+void
+tilemap_init(TileMap *tilemap, i32 width, i32 height, i32 tile_width, i32 tile_height)
+{
+    memset(tilemap, 0, sizeof(TileMap));
+    tilemap->tiles = bank_push_t(CORE->storage, Tile, width * height);
+    tilemap->width = width;
+    tilemap->height = height;
+    tilemap->tile_width = tile_width;
+    tilemap->tile_height = tile_height;
+}
+
+bool
+tilemap_get_draw_range(TileMap *tilemap, Rect *range)
+{
+    Rect r = CORE->canvas.clip;
+    rect_tr(&r, -CORE->canvas.translate_x, -CORE->canvas.translate_y);
+    i32 t;
+
+    t = ((r.min_x) / (i32)tilemap->tile_width);
+    r.min_x = maximum(0, t);
+    t = ((r.min_y) / (i32)tilemap->tile_height);
+    r.min_y = maximum(0, t);
+    if (r.min_x < (tilemap->tile_width * tilemap->width) && r.min_y < (tilemap->tile_height * tilemap->height))
+    {
+        t = ceil_div(r.max_x, tilemap->tile_width);
+        r.max_x = minimum((i32)tilemap->width,  t);
+        t = ceil_div(r.max_y, tilemap->tile_height);
+        r.max_y = minimum((i32)tilemap->height, t);
+        if (r.max_x >= 0 && r.max_y >= 0)
+        {
+            *range = r;
+            return 1;
+        }
+    }
+    return 0;
+}
+
+void
+tilemap_draw(TileMap *tilemap)
+{
+    Rect r;
+    if (tilemap_get_draw_range(tilemap, &r))
+    {
+        i32 y, x;
+        Tile *tile = tilemap->tiles + (r.min_y * tilemap->width);
+        for (y = r.min_y; y != r.max_y; ++y) {
+            for (x = r.min_x; x != r.max_x; ++x) {
+                if (tile[x].tileset) {
+                    tile_draw(tile[x].tileset, tile[x].index,
+                        x * tilemap->tile_width,
+                        y * tilemap->tile_height);
+                }
+            }
+            tile += tilemap->width;
+        }
+    }
 }
 
 //
@@ -4843,17 +4910,24 @@ win32_window_callback_(HWND window, UINT message, WPARAM wp, LPARAM lp)
         }
         break;
 
+        case WM_SYSKEYDOWN:
         case WM_KEYDOWN: {
-            if (!((lp >> 30) & 1)) {
-                // if (wp >= 'a' && wp <= 'z') {
-                //     wp -= 'a' - 'A';
-                // }
-                punity_on_key_down(wp, win32_app_key_mods_());
+            u32 mods = win32_app_key_mods_();
+            // Allow Alt+F4 to be handled in a standard way (closes the game).
+            if (!(wp == VK_F4 && (mods & KEY_MOD_ALT)))
+            {
+                if (!((lp >> 30) & 1)) {
+                    // if (wp >= 'a' && wp <= 'z') {
+                    //     wp -= 'a' - 'A';
+                    // }
+                    punity_on_key_down(wp, mods);
+                }
+                return 0;
             }
-            return 0;
         }
         break;
 
+        case WM_SYSKEYUP:
         case WM_KEYUP: {
             // if (wp >= 'a' && wp <= 'z') {
             //     wp -= 'a' - 'A';
@@ -5090,7 +5164,8 @@ WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR command_line, int sho
         f32 window_scaled_width  = CORE->window.width  * CORE->window.scale;
         f32 window_scaled_height = CORE->window.height * CORE->window.scale;
 
-        glViewport(0.f, 0.f, window_scaled_width, window_scaled_height);
+        glViewport(CORE->window.viewport_min_x, CORE->window.viewport_min_y,
+            window_scaled_width, window_scaled_height);
 
         glMatrixMode(GL_PROJECTION);
         glLoadIdentity();
