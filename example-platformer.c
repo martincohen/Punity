@@ -27,6 +27,15 @@ typedef struct
 }
 Player;
 
+typedef struct
+{
+    // Target position.
+    f32 tx, ty;
+    // Actual position.
+    f32 x, y;
+}
+Camera;
+
 typedef struct Game_
 {
     Bitmap font;
@@ -36,6 +45,7 @@ typedef struct Game_
     Sound sound_jump;
     Sound sound_land;
 
+    Camera camera;
     Player player;
 }
 Game;
@@ -98,6 +108,11 @@ player_step(Player *P, int key_left, int key_right, int key_jump)
             P->jump = 0;
         }
     }
+
+    rect_pos(P->E->box, 0.5, 0.5, &GAME->camera.tx, &GAME->camera.ty);
+    GAME->camera.x += (GAME->camera.tx - GAME->camera.x) / 4.0f;
+    GAME->camera.y += (GAME->camera.ty - GAME->camera.y) / 4.0f;
+    camera_set(roundf(GAME->camera.x), roundf(GAME->camera.y), 0);
 
     // Draw the player.
     rect_draw_push(P->E->box, 2, 10);
@@ -197,7 +212,8 @@ step()
         key_down(KEY_LEFT), key_down(KEY_RIGHT), key_pressed(KEY_UP));
 
     tilemap_draw(GAME->scene.tilemap);
-    
+ 
+    camera_reset();   
     char buf[256];
     sprintf(buf, "%.3fms %.3f", CORE->perf_step * 1e3, CORE->time_delta);
     text_draw(buf, 0, 0, 2);

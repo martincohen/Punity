@@ -58,8 +58,6 @@ Usage:
 
 #include <stdint.h>
 
-typedef struct GIFW_ GIFW;
-
 typedef struct GIFWColor_
 {
     uint8_t r, g, b;
@@ -94,11 +92,13 @@ typedef struct GIFWLZWState_
 }
 GIFWLZWState;
 
+typedef struct GIFW GIFW;
+
 #define GIFW_WRITE_CALLBACK(name) int name(GIFW *gif, uint8_t *begin, uint8_t *end, void *user)
 typedef GIFW_WRITE_CALLBACK(GIFWWriteCallbackF);
 
 // GIFW storage.
-typedef struct GIFW_
+struct GIFW
 {
     int width;
     int height;
@@ -111,8 +111,7 @@ typedef struct GIFW_
     int buffer_size;
     GIFWWriteCallbackF *callback;
     void *callback_user;
-}
-GIFW;
+};
 
 enum {
     // No disposal specified. The decoder is
@@ -242,7 +241,7 @@ gifw_flush_(GIFW *gif)
 static void
 gifw_write_(GIFW *gif, void *data, int size)
 {
-    int remaining, i;
+    int remaining;
     while (size)
     {
         remaining = GIFW_WRITE_BUFFER_SIZE - gif->buffer_size;

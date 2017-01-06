@@ -159,16 +159,21 @@ json_find_value(json_value *value, const char *key)
     return 0;
 }
 
+enum {
+    TiledLoaderTileset_Tiles,
+    TiledLoaderTileset_Collection
+};
 
 // TiledScene loader.
 typedef struct
 {
+    int type;
     int gid_begin;
     int gid_end;
     Tile *tiles;
+    size_t tiles_count;
 }
 TiledLoaderTileset_;
-
 
 typedef struct
 {
@@ -207,6 +212,7 @@ tiled_load_bitmap_(TiledLoader_ *L, const char *path)
         L->tiled->cache = realloc(L->tiled->cache, sizeof(TiledCacheEntry) * L->tiled->cache_capacity);
     }
     TiledCacheEntry *entry = &L->tiled->cache[L->tiled->cache_count++];
+    memset(entry, 0, sizeof(TiledCacheEntry));
     size_t path_length = strlen(path);
     entry->path = bank_push(L->storage, path_length + 1);
     memcpy(entry->path, path, path_length + 1);
@@ -216,18 +222,23 @@ tiled_load_bitmap_(TiledLoader_ *L, const char *path)
 }
 
 static TiledLoaderTileset_ *
-tiled_add_tileset_(TiledLoader_ *L, int gid_first, int count)
+tiled_add_tileset_(TiledLoader_ *L, int gid_first, int count, int type)
 {
     if (L->tilesets_count == L->tilesets_capacity) {
         L->tilesets_capacity += 16;
         L->tilesets = realloc(L->tilesets, sizeof(TiledLoaderTileset_) * L->tilesets_capacity);
+        ASSERT(L->tilesets);
     }
     TiledLoaderTileset_ *tileset = &L->tilesets[L->tilesets_count];
     L->tilesets_count++;
 
+    memset(tileset, 0, sizeof(TiledLoaderTileset_));
+    tileset->type = type;
     tileset->gid_begin = gid_first;
     tileset->gid_end   = gid_first + count;
     tileset->tiles = malloc(count * sizeof(Tile));
+    tileset->tiles_count = count;
+    ASSERT(tileset->tiles);
     memset(tileset->tiles, 0, count * sizeof(Tile));
     
     return tileset;
@@ -240,7 +251,15 @@ tiled_find_tile_(TiledLoader_ *L, int gid)
         TiledLoaderTileset_ *it = L->tilesets;
         for (int i = 0; i != L->tilesets_count; ++i, ++it) {
             if (gid >= it->gid_begin && gid < it->gid_end) {
-                return it->tiles + (gid - it->gid_begin);
+                if (it->type == TiledLoaderTileset_Tiles) {
+                    return it->tiles + (gid - it->gid_begin);
+                } else {
+                    for (int j = 0; j != it->tiles_count; j++) {
+                        if (it->tiles[j].index == (gid - it->gid_begin)) {
+                            return &it->tiles[j];
+                        }
+                    }
+                }
             }
         }
     }
@@ -268,7 +287,7 @@ tiled_load_meta_(TiledLoader_ *L, int type, void *data, json_value *properties)
     json_value *v;
     switch (type)
     {
-    case TiledType_Tile:
+    case TiledType_Tile: {
         Tile *tile = (Tile*)data;
         v = json_find_value(properties, "edges");
         if (v && v->type == json_string)  {
@@ -300,7 +319,7 @@ tiled_load_meta_(TiledLoader_ *L, int type, void *data, json_value *properties)
         if (v && v->type == json_integer) {
             tile->layer = v->integer;
         }
-        break;
+    } break;
     }
 
     if (L->meta_callback) {
@@ -339,7 +358,7 @@ tiled_load_tileset_(TiledLoader_ *L, json_value *value, int *firstgid)
         tileset->tile_height = v->integer;
 
         uint tiles_count = (tileset->width / tileset->tile_width) * (tileset->height / tileset->tile_height);
-        tiled_tileset = tiled_add_tileset_(L, gid_first, tiles_count);
+        tiled_tileset = tiled_add_tileset_(L, gid_first, tiles_count, TiledLoaderTileset_Tiles);
         for (uint j = 0; j != tiles_count; ++j) {
             tiled_tileset->tiles[j].tileset = tileset;
             tiled_tileset->tiles[j].index = j;
@@ -363,17 +382,34 @@ tiled_load_tileset_(TiledLoader_ *L, json_value *value, int *firstgid)
     json_value *value_tiles = json_find_value(value, "tiles");
     if (value_tiles)
     {
-        tiled_tileset = tiled_add_tileset_(L, gid_first, value_tiles->object.length);
+        tiled_tileset = tiled_add_tileset_(L, gid_first, value_tiles->object.length, TiledLoaderTileset_Collection);
         json_object_entry *it_tile = value_tiles->object.values;
-        for (uint j = 0; j != value_tiles->object.length; ++j, ++it_tile) {
+        for (uint j = 0; j != value_tiles->object.length; ++j, ++it_tile)
+        {
             value_image = json_find_value(it_tile->value, "image");
-            if (value_image) {
-                Bitmap *tileset = tiled_load_bitmap_(L, value_image->string.ptr);
-                char *name_end = it_tile->name + it_tile->name_length;
-                int index = strtol(it_tile->name, &name_end, 10);
-                tiled_tileset->tiles[index].tileset = tileset;
-                tiled_tileset->tiles[index].index = index;
+            if (!value_image) {
+                FAIL("missing image in collection");
             }
+
+            Bitmap *tileset = tiled_load_bitmap_(L, value_image->string.ptr);
+            char *name_end = it_tile->name + it_tile->name_length;
+            int index = strtol(it_tile->name, &name_end, 10);
+            /*
+            "tilesets": [{
+                "firstgid":1,
+                "tilecount":2,
+                "tiles": {
+                 "0": { "image":"background.png" },
+                 "4": { "image":"pictures.png" }
+                },
+            }],
+            */
+            // Tiled has an inconsistency in it's format that causes the `tilecount` to only
+            // represent number of tiles in a collection, but doesn't have any way of knowing
+            // the maximum GID, therefore FUCK TILED.
+            tiled_tileset->tiles[j].tileset = tileset;
+            tiled_tileset->tiles[j].index = index;
+            tiled_tileset->gid_end = tiled_tileset->gid_begin + index + 1;
         }
 
         return;
@@ -415,6 +451,7 @@ tiled_add_item_(TiledLoader_ *L, int type, const char *name, size_t name_length)
     TiledItem *item = bank_push(L->storage, sizeof(TiledItem) + name_length + 1);
     memset(item, 0, sizeof(TiledItem) + name_length + 1);
     item->name = (char*)(item + 1);
+    item->name[0] = 0;
     if (name) {
         memcpy(item->name, name, name_length + 1);
     }
@@ -450,7 +487,6 @@ tiled_load_tilemap_(TiledLoader_ *L, json_value *value)
             item->tilemap.tiles = bank_push_t(L->storage, Tile, it->value->array.length);
             memset(item->tilemap.tiles, 0, sizeof(Tile) * it->value->array.length);
             Tile *tile = item->tilemap.tiles;
-            Tile *tiled_tile;
             json_value **value_tile = it->value->array.values;
             for (uint i = 0; i != it->value->array.length; ++i, ++value_tile, ++tile) {
                 tiled_setup_tile_(L, (*value_tile)->integer, tile);
@@ -475,9 +511,9 @@ tiled_load_objects_(TiledLoader_ *L, json_value *value)
     }
     ASSERT_MESSAGE(root->type == json_array, "`objects` is not an array");
 
-    uint i, j;
+    int x, y, width, height;
+    uint i;
     json_value *v;
-    json_object_entry *value_object_property;
     json_value **value_object = root->array.values;
     for (i = 0; i != root->array.length; ++i, ++value_object)
     {
@@ -507,24 +543,37 @@ tiled_load_objects_(TiledLoader_ *L, json_value *value)
 
         v = json_find_value(*value_object, "x");
         ASSERT_MESSAGE(v, "`x` coordinate not found");
-        item->rect.min_x = v->integer;
+        x = v->integer;
 
         v = json_find_value(*value_object, "y");
         ASSERT_MESSAGE(v, "`y` coordinate not found");
-        item->rect.min_y = v->integer;
+        y = v->integer;
 
         v = json_find_value(*value_object, "width");
         ASSERT_MESSAGE(v, "`width` coordinate not found");
-        item->rect.max_x = item->rect.min_x + v->integer;
+        width = v->integer;
 
         v = json_find_value(*value_object, "height");
         ASSERT_MESSAGE(v, "`height` coordinate not found");
-        item->rect.max_y = item->rect.min_y + v->integer;
+        height = v->integer;
 
         v = json_find_value(*value_object, "gid");
         if (v) {
             item->type = TiledType_Image;
-            ASSERT_MESSAGE(tiled_setup_tile_(L, v->integer, &item->tile), "tile not found");
+            if (!tiled_setup_tile_(L, v->integer, &item->tile)) {
+                FAIL("tile with GID `%d` not found", v->integer);
+                return;
+            }
+            // Love you Tiled.
+            item->rect.min_x = x;
+            item->rect.min_y = y - height;
+            item->rect.max_x = item->rect.min_x + width;
+            item->rect.max_y = item->rect.min_y + height;
+        } else {
+            item->rect.min_x = x;
+            item->rect.min_y = y;
+            item->rect.max_x = item->rect.min_x + width;
+            item->rect.max_y = item->rect.min_y + height;
         }
 
         tiled_load_meta_(L, TiledType_Item, item, json_find_value(*value_object, "properties"));
@@ -649,7 +698,6 @@ tileditem_next(TiledItem *item)
 TiledItem *
 tiledscene_find(TiledScene *S, const char *name, TiledItem *begin)
 {
-    size_t i = 0;
     TiledItem *it = S->items;
     if (begin) {
         ASSERT_MESSAGE(begin < S->items_end, "`begin` does not point to item in this array");

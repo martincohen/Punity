@@ -1,3 +1,7 @@
+# Version 2.4
+
+- Removed `rect_center`, use `rect_pos(rect, 0.5, 0.5, &x, &y)` instead.
+
 # Version 2.3
 
 - Update `example-platformer` to use Tiled maps.

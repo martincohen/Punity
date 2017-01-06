@@ -5,11 +5,11 @@ set target=main
 set target_c=%target%
 set target_rc=%target%
 set target_exe=%target%
-set target_flag=PUN_TARGET_MAIN
+set target_flag=PUNITY_TARGET_MAIN
 set compiler=cl
 set configuration=debug
-set runtime=PUN_RUNTIME_WINDOWS
-set platform=PUN_PLATFORM_WINDOWS
+set runtime=PUNITY_RUNTIME_WINDOWS
+set platform=PUNITY_PLATFORM_WINDOWS
 set luajit=0
 
 if not exist bin mkdir bin
@@ -34,7 +34,7 @@ for %%a in (%*) do (
 	) else if "%%a"=="luajit" (
 		set luajit=1
 	) else if "%%a"=="lunity" (
-		set target_flag=PUN_TARGET_LUNITY
+		set target_flag=PUNITY_TARGET_LUNITY
 		set target=lunity/lunity
 		set target_rc=lunity/lunity
 	) else (
@@ -65,7 +65,7 @@ echo -------------------------------------------------
 
 if "%compiler%"=="cl" (
 	rem MT for statically linked CRT, MD for dynamically linked CRT
-	set win_runtime_lib=MD
+	set win_runtime_lib=MT
 	set common_c=..\!target_c! /Fe!target!.exe -nologo -D_WIN32_WINNT=0x0501 -D!runtime!=1 -D!platform!=1 -D!target_flag!=1 -TC -FC -EHa- -I..\ -I..\lib
 	set common_l=/OPT:REF user32.lib gdi32.lib winmm.lib !target!.res
 
@@ -80,11 +80,11 @@ if "%compiler%"=="cl" (
 	)
 
 	if "%runtime%"=="sdl" (
-		set common_c=!common_c! -DPUN_RUNTIME_SDL=1 -I..\lib\SDL\include
+		set common_c=!common_c! -DPUNITY_RUNTIME_SDL=1 -I..\lib\SDL\include
 		set common_l=/SUBSYSTEM:WINDOWS /INCREMENTAL:NO !common_l! -LIBPATH:..\lib\SDL\lib\x86 SDL2main.lib SDL2.lib opengl32.lib
 		if not exist bin\SDL2.dll copy lib\SDL\lib\x86\SDL2.dll bin\
 	) else (
-		set common_c=!common_c! -DPUN_RUNTIME_WINDOWS=1
+		set common_c=!common_c! -DPUNITY_RUNTIME_WINDOWS=1
 	)
 
 	rem if "%configuration%"=="release" (
@@ -109,10 +109,10 @@ if "%compiler%"=="cl" (
 		if "!win_runtime_lib!"=="MD" (
 			echo Applying special compiler and linker options...
 		)
-		cl !common_c! -!win_runtime_lib! -O2 -DPUN_RELEASE_BUILD=1 -Gy -Oy /link !common_l! 
+		cl !common_c! -!win_runtime_lib! -O2 -DPUNITY_RELEASE_BUILD=1 -Gy -Oy /link !common_l! 
 		strip !target!.exe
 	) else if "%configuration%"=="release_debug" (
-		cl !common_c! -!win_runtime_lib! -O2 -DPUN_RELEASE_BUILD=1 -Gy -Oy -Z7 /link !common_l! 
+		cl !common_c! -!win_runtime_lib! -O2 -DPUNITY_RELEASE_BUILD=1 -Gy -Oy -Z7 /link !common_l! 
 	) else (
 		cl !common_c! -!win_runtime_lib!d -Od -Z7 /link !common_l!
 	)
@@ -141,7 +141,7 @@ if "%compiler%"=="cl" (
 	echo.
 	echo Compiling...
 	if "%configuration%"=="release" (
-		gcc !common_c! -O2 -DPUN_RELEASE_BUILD=1 -mwindows !common_l!
+		gcc !common_c! -O2 -DPUNITY_RELEASE_BUILD=1 -mwindows !common_l!
 		echo Stripping...
 		strip ./bin/!target!.exe
 	) else (
