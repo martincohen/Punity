@@ -269,38 +269,40 @@ tiled_load_meta_(TiledLoader_ *L, int type, void *data, json_value *properties)
     switch (type)
     {
     case TiledType_Tile:
-        Tile *tile = (Tile*)data;
-        v = json_find_value(properties, "edges");
-        if (v && v->type == json_string)  {
-            for (char *it = v->string.ptr; *it; ++it) {
-                switch (*it)
-                {
-                case 'T': case 't':
-                    tile->flags |= Edge_Top;
-                    break;
-                case 'B': case 'b':
-                    tile->flags |= Edge_Bottom;
-                    break;
-                case 'L': case 'l':
-                    tile->flags |= Edge_Left;
-                    break;
-                case 'R': case 'r':
-                    tile->flags |= Edge_Right;
-                    break;
+        {
+            Tile *tile = (Tile*)data;
+            v = json_find_value(properties, "edges");
+            if (v && v->type == json_string)  {
+                for (char *it = v->string.ptr; *it; ++it) {
+                    switch (*it)
+                    {
+                    case 'T': case 't':
+                        tile->flags |= Edge_Top;
+                        break;
+                    case 'B': case 'b':
+                        tile->flags |= Edge_Bottom;
+                        break;
+                    case 'L': case 'l':
+                        tile->flags |= Edge_Left;
+                        break;
+                    case 'R': case 'r':
+                        tile->flags |= Edge_Right;
+                        break;
+                    }
                 }
-            }
 #ifdef TILEDTILE_DEFAULT_LAYER
-            if (tile->flags != 0) {
-                tile->layer = TILEDTILE_DEFAULT_LAYER;
-            }
+                if (tile->flags != 0) {
+                    tile->layer = TILEDTILE_DEFAULT_LAYER;
+                }
 #endif
-        }
+            }
 
-        v = json_find_value(properties, "layer");
-        if (v && v->type == json_integer) {
-            tile->layer = v->integer;
+            v = json_find_value(properties, "layer");
+            if (v && v->type == json_integer) {
+                tile->layer = v->integer;
+            }
+            break;
         }
-        break;
     }
 
     if (L->meta_callback) {
