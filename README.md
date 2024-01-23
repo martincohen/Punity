@@ -25,7 +25,7 @@ On an average machine, a game [33 grams](https://martincohen.itch.io/33-grams) u
 - Perfect for simple pixel art with only 255 colors (0 reserved for transparency)!
 - No need to worry about 8 bits of transparency, because you just get one!
 - Optionaly limited to 30 frames per second that gives you them retro feels!
-- Fuck other platforms, **Windows** is where it's at! (see **Planned features** for more platforms)
+- Windows is supported directly, other platforms (*nix, Mac OS X, Android, Dingus, etc.) via SDL-2 (see [lib/punity-sdl.c](./lib/punity-sdl.c))
 
 ## Goals
 
@@ -37,12 +37,6 @@ On an average machine, a game [33 grams](https://martincohen.itch.io/33-grams) u
 - **One file.** Even though it's supposed to be a ready-to-go package, the essence is in a single file that you can grab and use.
 
 One of the most important parts of Punity is that it's made to be changed and edited as you need. That way the code can be really simple only giving you basic features and doesn't need to worry about customizations and abstractions.
-
-## Planned features
-
-**Note that the project is still in development.** More documentation, features, examples and fixes is underway.
-
-- **SDL platform layer** in an optional separate file `punity_sdl.c` with additional pre-made build scripts (Windows, Linux, Mac OS X, iOS, Android, Raspberry Pi, [Dingux](http://wiki.dingoonity.org/index.php?title=Dingux:About), etc.). This would introduce a dependency on SDL2, though.
 
 # Documentation
 
