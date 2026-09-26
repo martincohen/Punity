@@ -1,6 +1,10 @@
 #ifndef PUNITY_RUNTIME_SDL_INCLUDED
 #define PUNITY_RUNTIME_SDL_INCLUDED
 
+#ifndef PUNITY_SDL_AUDIO_CALLBACK
+#define PUNITY_SDL_AUDIO_CALLBACK 0
+#endif
+
 #include "SDL.h"
 #include "SDL_opengl.h"
 
@@ -16,11 +20,13 @@ typedef struct
     SDL_mutex *audio_mutex;
     SDL_AudioSpec audio_spec;
     SDL_AudioDeviceID audio_device;
+#if PUNITY_SDL_AUDIO_CALLBACK == 0
     Bank audio_bank;
     Uint8* audio_buffer;
     f64 audio_buffer_time;
     f64 audio_time;
     f64 game_time;
+#endif
 }
 PunitySDLRuntime_;
 
@@ -174,6 +180,8 @@ main(int argc, char **argv)
         return 0;
     }
 
+    atexit(SDL_Quit);
+
 #if 0
     mtar_t tar;
     mtar_header_t h;
@@ -233,11 +241,11 @@ main(int argc, char **argv)
     bank_init(&sdl_.audio_bank, megabytes(2));
 
     SDL_AudioSpec audio_spec_req = {0};
-    audio_spec_req.freq = 48000; // 44100;
+    audio_spec_req.freq = PUNITY_AUDIO_FREQ; // 44100;
     audio_spec_req.format = AUDIO_S16;
     audio_spec_req.channels = 2;
-    audio_spec_req.samples = 4096;
-    audio_spec_req.callback = 0; // punsdl_audio_callback_;
+    audio_spec_req.samples = PUNITY_AUDIO_SAMPLES;
+    audio_spec_req.callback = audio_callback;
 
     sdl_.audio_device = SDL_OpenAudioDevice(NULL,
         0, &audio_spec_req,
@@ -261,33 +269,19 @@ main(int argc, char **argv)
                (int)sdl_.audio_spec.freq,
                sdl_.audio_buffer_time);
 
+#if PUNITY_SDL_AUDIO_CALLBACK == 0
         sdl_.audio_buffer_time = (f64)audio_spec_req.samples / (f64)audio_spec_req.freq;
         // sdl_.audio_update_time_delta = 0;
         sdl_.audio_buffer = bank_push(&sdl_.audio_bank, sdl_.audio_spec.samples * sizeof(i16) * sdl_.audio_spec.channels);
         ASSERT(sdl_.audio_spec.freq == 48000);
         ASSERT(sdl_.audio_spec.format == AUDIO_S16);
+#endif
         SDL_PauseAudioDevice(sdl_.audio_device, 0);
     }
     else
     {
-#if GAME_DEBUG
         FAIL("Failed to initialize audio engine. (%s)", SDL_GetError());
-#endif
     }
-
-
-#if 0
-    sdl_.renderer = SDL_CreateRenderer(
-        sdl_.window, -1,
-        SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
-
-    if (sdl_.renderer == 0) {
-        SDL_DestroyWindow(sdl_.window);
-        SDL_Log("SDL_CreateRenderer: %s\n", SDL_GetError());
-        SDL_Quit();
-        return 1;
-    }
-#endif
 
     sdl_.context = SDL_GL_CreateContext(sdl_.window);
 
@@ -419,6 +413,7 @@ main(int argc, char **argv)
 
         punity_frame_step();
 
+#if PUNITY_SDL_AUDIO_CALLBACK == 0
         // @lclhstr had problems with audio.
         // @miblo_ hears a loop-end glitch.
 
@@ -444,6 +439,7 @@ main(int argc, char **argv)
                 }
             }
         }
+#endif
 
         f32 window_scaled_width  = CORE->window.width  * CORE->window.scale;
         f32 window_scaled_height = CORE->window.height * CORE->window.scale;
@@ -489,7 +485,6 @@ main(int argc, char **argv)
 
     SDL_GL_DeleteContext(sdl_.context);
     SDL_DestroyWindow(sdl_.window);
-    SDL_Quit();
 
     return 0;
 }

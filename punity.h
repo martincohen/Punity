@@ -190,6 +190,14 @@
 #define PUNITY_HIDE_MOUSE 1
 #endif
 
+#ifndef PUNITY_AUDIO_FREQ
+#define PUNITY_AUDIO_FREQ (48000)
+#endif
+
+#ifndef PUNITY_AUDIO_SAMPLES
+#define PUNITY_AUDIO_SAMPLES (4096)
+#endif
+
 // Platform specific color channel ordering.
 // As more platforms are available, this will be set automatically per platform.
 //
@@ -428,9 +436,19 @@ extern inline u8 palette_color_set(Palette *palette, u8 index, Color color);
 extern inline int palette_color_add(Palette *palette, Color color, int range);
 extern inline int palette_color_acquire(Palette *palette, Color color, int range);
 
+typedef struct
+{
+    i32 x;
+    i32 y;
+}
+Point;
 
 typedef union
 {
+    struct {
+        Point min;
+        Point max;
+    };
     struct {
         i32 min_x;
         i32 min_y;
@@ -463,9 +481,12 @@ extern inline Rect rect_make(i32 min_x, i32 min_y, i32 max_x, i32 max_y);
 extern inline Rect rect_make_size(i32 x, i32 y, i32 w, i32 h);
 extern inline Rect rect_make_centered(i32 x, i32 y, i32 w, i32 h);
 extern inline Rect rect_clip(Rect rect, Rect clip);
-extern inline bool rect_contains_point(Rect rect, i32 x, i32 y);
+extern inline bool rect_contains_xy(Rect rect, i32 x, i32 y);
+extern inline bool rect_contains_point(Rect rect, Point point);
 extern inline bool rect_overlaps(Rect rect_a, Rect rect_b);
 extern inline void rect_pos(Rect rect, f32 rx, f32 ry, f32 *x, f32 *y);
+
+extern inline f32  point_distance(Point a, Point b);
 
 typedef struct
 {
@@ -659,7 +680,6 @@ struct DrawListItem_
 
 typedef struct
 {
-    // TODO: Potentially we don't need both of these, storage would do.
     DrawListItem *items_storage;
     DrawListItem **items;
     size_t items_count;
@@ -1000,6 +1020,9 @@ Window;
 
 typedef struct Shader Shader;
 
+#define TERMINATE_F(name) int name(int code)
+typedef TERMINATE_F(TerminateF);
+
 typedef struct
 {
     // Memory for large in-function working data.
@@ -1061,7 +1084,7 @@ typedef struct
     u8 key_text_length;
 
     // Total time taken to step.
-    f32 perf_step;
+    f64 perf_step;
 
     // Current frame number.
     i64 frame;
@@ -1080,6 +1103,7 @@ typedef struct
     f32 audio_volume;
 
     const char *args;
+    TerminateF *terminate_f;
 }
 Core;
 
@@ -1098,6 +1122,7 @@ void logv_(const char *function, const char *file, int line, const char *format,
             (panic_(message, #expression, __FUNCTION__, __FILE__, __LINE__, ##__VA_ARGS__), 0) )
 
 #define ASSERT(expression) ASSERT_MESSAGE(expression, #expression)
+
 #ifdef PUNITY_DEBUG
 #define ASSERT_DEBUG_MESSAGE ASSERT_MESSAGE
 #define ASSERT_DEBUG ASSERT
@@ -2061,10 +2086,16 @@ rect_clip(Rect rect, Rect clip)
 }
 
 bool
-rect_contains_point(Rect rect, i32 x, i32 y)
+rect_contains_xy(Rect rect, i32 x, i32 y)
 {
     return (x >= rect.min_x && x < rect.max_x &&
             y >= rect.min_y && y < rect.max_y);
+}
+
+bool
+rect_contains_point(Rect rect, Point point)
+{
+    return rect_contains_xy(rect, point.x, point.y)
 }
 
 bool
@@ -2087,6 +2118,14 @@ rect_check_limits(Rect *rect, i32 min_x, i32 min_y, i32 max_x, i32 max_y)
            (rect->max_x <= max_x) && (rect->max_y <= max_y) &&
            (rect->min_x <= rect->max_x) &&
            (rect->min_y <= rect->max_y);
+}
+
+f32
+point_distance(Point a, Point b)
+{
+    f32 dx = a.x - b.x;
+    f32 dy = a.y - b.y
+    return sqrtf(dx*dx + dy*dy);
 }
 
 //
@@ -4425,7 +4464,7 @@ punity_frame_begin()
     CORE->time_delta = perf_get() - CORE->time_frame_begin;
 
 #if !PUNITY_RUNTIME_SDL && (!PUNITY_OPENGL || PUNITY_OPENGL_30FPS)
-    // LOG("time_delta %.3f\n", CORE->time_delta);
+    LOG("time_delta %.3f\n", CORE->time_delta);
     if (CORE->time_delta < (1.0f/30.0f)) {
         int sleep = ((1.0f/30.0f) - CORE->time_delta) * 1e3;
         // LOG("sleep %.dms\n", sleep);

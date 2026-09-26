@@ -156,7 +156,13 @@ if "%compiler%"=="cl" (
 goto :end
 
 :failed
-echo.
-echo Build failed.
+set ERRORLEVEL=1
 
 :end
+
+if %ERRORLEVEL% geq 1 (
+	echo Done with errors.
+	exit /B 2
+) else (
+	echo Done.
+)
