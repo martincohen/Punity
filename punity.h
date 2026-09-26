@@ -6,6 +6,19 @@
  */ 
 
 /**
+ * Version 1.7
+ * - Added `CORE->time`.
+ * - Added `CORE->key_text` and `CORE->key_text_length` to be able to work with text input.
+ * - Fixed bug with drawing bitmaps higher than the screen.
+ * - Added DirectX support. (Turn off in `config.h` through `#define PUN_PLATFORM_WINDOWS_D3D 0`)
+ *   - Custom shaders.
+ *   - Added `CORE->shader` to access custom shaders.
+ *   - Support headers for MinGW compilation with DirectX.
+ *   - MinGW crashing with DirectX support. (see https://github.com/martincohen/Punity/issues/6)
+ * - COLOR_CHANNELS changed to PUN_COLOR_CHANNELS
+ * - `file_read` now takes optional `bank` pointer to store the file, if it's 0 then it'll use malloc()
+ * - `color_lerp` is now in header file.
+ *
  * Version 1.6
  * - Version actually used for Ludum Dare and Low-Rez jams.
  * - "Cherchez" has been made with this version: https://martincohen.itch.io/cherchez
@@ -19,6 +32,7 @@
  * - Reworked `bitmap_draw` function.
  * - Added drawing list support (see the documentation).
  * - Added `*_push` functions for pushing draw operations to draw list (see the documentation)
+ *
  * Version 1.5
  * - Renamed configuration macros to use PUN_* prefix
  * - PUN_MAIN can now be used to not define the main entry function.
@@ -26,17 +40,22 @@
  * - Changed bitmap_draw signature to have Bitmap* at the beginning.
  * - Changed text_darw signature to have const char* at the beginning.
  * - Translation direction changed in bitmap_draw() and text_draw().
+ *
  * Version 1.4
  * - Fixed audio clipping problems by providing a soft-clip.
  * - Added master and per-sound volume controls.
+ *
  * Version 1.3
  * - Fixed RGB in bitmap loader on Windows.
+ *
  * Version 1.2
  * - Replaced usage of `_` prefixes with `PUNP_` prefixes to not violate reserved identifiers.
+ *
  * Version 1.1
  * - Fixed timing issues and frame counting.
  * - Fixed KEY_* constants being not correct for Windows platform.
  * - Added draw_rect().
+ *
  * Version 1.0
  * - Initial release
  */
@@ -64,54 +83,98 @@
 #include "config.h"
 #endif
 
+// TODO: This has to be defined in the command-line.
 #define PUN_PLATFORM_WINDOWS 1
 
+#if PUN_PLATFORM_WINDOWS
+#ifndef PUN_PLATFORM_WINDOWS_D3D
+#define PUN_PLATFORM_WINDOWS_D3D 1
+#endif
+#endif
+
+
+// Title that is set for the window when created.
+//
 #ifndef PUN_WINDOW_TITLE
 #define PUN_WINDOW_TITLE "Punity"
 #endif
 
+// Width of the cavas.
+//
 #ifndef PUN_CANVAS_WIDTH
 #define PUN_CANVAS_WIDTH 128
 #endif
 
+// Height of the cavas.
+//
 #ifndef PUN_CANVAS_HEIGHT
 #define PUN_CANVAS_HEIGHT 128
 #endif
 
+// Scale used for normal (non-fullscreen) window.
+// Scale for full-screen window is calculated automatically.
+//
 #ifndef PUN_CANVAS_SCALE
 #define PUN_CANVAS_SCALE 2
 #endif
 
+// Maximum number of bytes available in `CORE->stack` bank.
+//
 #ifndef PUN_STACK_CAPACITY
 #define PUN_STACK_CAPACITY megabytes(1)
 #endif
 
+// Maximum number of bytes available in `CORE->storage` bank.
+//
 #ifndef PUN_STORAGE_CAPACITY
 #define PUN_STORAGE_CAPACITY megabytes(1)
 #endif
 
+// If `CORE->key_text` as UTF-32 string. (set to 1)
+// However for most of use cases, `char` would do. (set to 0)
+//
+#ifndef PUN_TEXT_UNICODE
+#define PUN_TEXT_UNICODE 0
+#endif
+
+// How many items to reserve for the draw list.
+// It's not very important to get this one right, system allocated more space for next frame
+// if current frame's allocation was not enough.
+//
 #ifndef PUN_DRAW_LIST_RESERVE
 #define PUN_DRAW_LIST_RESERVE 128
 #endif
 
+// Enables integration with `stb_image.h` library.
+// Allows for loading common image formats.
+//
 #ifndef PUN_USE_STB_IMAGE
 #define PUN_USE_STB_IMAGE 0
 #endif
 
+// Enables integration with `stb_vorbis.c` library.
+// Allows for using `.ogg` file format for audio.
+//
 #ifndef PUN_USE_STB_VORBIS
 #define PUN_USE_STB_VORBIS 0
 #endif
 
-#ifndef PUN_SOUND_CHANNELS
-#define PUN_SOUND_CHANNELS 4
-#endif
-
+// Sample rate used internally in Punity.
+// This rate is requested from the system (it's the most common one).
+// All audio is resampled to this frequency.
+//
 #ifndef PUN_SOUND_SAMPLE_RATE
 #define PUN_SOUND_SAMPLE_RATE 48000
 #endif
 
+// Platform specific color channel ordering.
+// As we only support Windows currently, you don't have to care too much about this.
+// As more platforms are available, this will be set automatically per platform.
+//
 #if PUN_PLATFORM_WINDOWS
-#define COLOR_CHANNELS b, g, r, a
+#define PUN_COLOR_CHANNELS b, g, r, a
+#else
+#define PUN_COLOR_CHANNELS r, g, b, a
 #endif
 
 typedef uint8_t   u8;
@@ -129,6 +192,15 @@ typedef size_t    usize;
 typedef ptrdiff_t isize;
 
 #define unused(x) (void)x
+
+#if defined(_MSC_VER)
+#define PUN_ALIGN_(x) __declspec(align(x))
+#else
+#if defined(__GNUC__)
+#define PUN_ALIGN_(x) __attribute__ ((aligned(x)))
+#endif
+#endif
+
 #define align_to(value, N) ((value + (N-1)) & ~(N-1))
 #define ceil_div(n, a) (((n) + (a-1))/(a))
 #define equalf(a, b, epsilon) (fabs(b - a) <= epsilon)
@@ -218,7 +290,7 @@ void bank_end(BankState *state);
 // File I/O
 //
 
-void *file_read(const char *path, size_t *size);
+void *file_read(Bank *bank, const char *path, size_t *size);
 bool file_write(const char *path, void *ptr, size_t size);
 
 //
@@ -232,40 +304,11 @@ typedef struct
 }
 V2f;
 
-extern inline V2f
-v2f_make(f32 x, f32 y)
-{
-    V2f v;
-    v.x = x;
-    v.y = y;
-    return v;
-}
-
-extern inline f32
-v2f_length(V2f v)
-{
-    return sqrtf((v.x * v.x) + (v.y * v.y));
-}
-
-extern inline V2f
-v2f_normalize(V2f v)
-{
-    f32 length = v2f_length(v);
-    V2f ret = v2f_make(v.x / length, v.y / length);
-    return ret;
-}
-
-extern inline f32
-v2f_angle(V2f v)
-{
-    return atan2f(v.y, v.x);
-}
-
-extern inline V2f
-v2f_minus(V2f a, V2f b)
-{
-    return v2f_make( a.x - b.x, a.y - b.y );
-}
+extern inline V2f v2f_make(f32 x, f32 y);
+extern inline f32 v2f_length(V2f v);
+extern inline V2f v2f_normalize(V2f v);
+extern inline f32 v2f_angle(V2f v);
+extern inline V2f v2f_minus(V2f a, V2f b);
 
 //
 // Graphics
@@ -279,13 +322,14 @@ typedef union
 {
     struct
     {
-        u8 COLOR_CHANNELS;
+        u8 PUN_COLOR_CHANNELS;
     };
     u32 rgba;
 }
 Color;
 
-Color color_make(u8 r, u8 g, u8 b, u8 a);
+extern inline Color color_make(u8 r, u8 g, u8 b, u8 a);
+extern inline Color color_lerp(Color from, Color to, f32 t);
 
 typedef struct
 {
@@ -324,10 +368,10 @@ Rect;
 #define rect_height(r) \
     ((r)->max_y - (r)->min_y)
 
-inline Rect rect_make(i32 min_x, i32 min_y, i32 max_x, i32 max_y);
-inline Rect rect_make_size(i32 x, i32 y, i32 w, i32 h);
-inline Rect rect_make_centered(i32 x, i32 y, i32 w, i32 h);
-inline bool rect_contains_point(Rect *rect, i32 x, i32 y);
+extern inline Rect rect_make(i32 min_x, i32 min_y, i32 max_x, i32 max_y);
+extern inline Rect rect_make_size(i32 x, i32 y, i32 w, i32 h);
+extern inline Rect rect_make_centered(i32 x, i32 y, i32 w, i32 h);
+extern inline bool rect_contains_point(Rect *rect, i32 x, i32 y);
 
 typedef struct
 {
@@ -453,6 +497,16 @@ void bitmap_draw_push(
 void text_draw(const char *text, i32 x, i32 y, u8 color);
 void text_draw_push(const char *text, i32 x, i32 y, u8 color, i32 z);
 
+typedef struct
+{
+    u8 fg;
+    u8 bg;
+}
+TextAttr;
+
+void text_draw_attr(const char *text, i32 x, i32 y, TextAttr *attrs, size_t length);
+
+
 //
 // DrawList
 //
@@ -524,6 +578,8 @@ void *resource_get(const char *name, size_t *size);
 
 #define PUN_KEYS_MAX 256
 
+typedef struct Shader Shader;
+
 typedef struct
 {
     // Memory for large in-function working data.
@@ -563,6 +619,14 @@ typedef struct
     //
     u8 key_deltas[PUN_KEYS_MAX];
 
+    // String holding text that has been entered for the current frame.
+#if PUN_TEXT_UNICODE
+    u32 key_text[8];
+#else
+    char key_text[8];
+#endif
+    u8 key_text_length;
+
     // Total frame time.
     PerfSpan perf_frame;
     // Total time taken to process everything except the vsync.
@@ -579,11 +643,30 @@ typedef struct
 
     // Current frame number.
     i64 frame;
+    // Current time.
+    f32 time;
+
+    // Current scale used to draw the frame.
+    // Set automatically on resize (also on fullscreen).
+    f32 viewport_scale;
+    // Current viewport rectangle.
+    // Set automatically on resize (also on fullscreen).
+    f32 viewport_min_x;
+    f32 viewport_min_y;
+    f32 viewport_max_x;
+    f32 viewport_max_y;
+    // Color used to draw the window background.
+    Color background;
 
     Canvas canvas;
     DrawList *draw_list;
 
     f32 audio_volume;
+
+    // Data for shader.
+#ifdef PUN_SHADER_TYPE
+    PUN_SHADER_TYPE *shader;
+#endif
 }
 Core;
 
@@ -629,7 +712,7 @@ void step();
 #define KEY_CANCEL              3
 #define KEY_MBUTTON             4
 
-#define KEY_BACK                8
+#define KEY_BACKSPACE           8
 #define KEY_TAB                 9
 #define KEY_CLEAR               12
 #define KEY_RETURN              13

@@ -10,6 +10,7 @@
 #if PUN_PLATFORM_OSX || PUN_PLATFORM_LINUX
 // TODO
 #else
+#define _WINSOCKAPI_
 #include <windows.h>
 #include <dsound.h>
 #endif
@@ -26,14 +27,9 @@
 #undef C
 #endif
 
-//#define PUNP_SOUND_DEFAULT_SOUND_VOLUME 0.8f
-//#define PUNP_SOUND_DEFAULT_MASTER_VOLUME 0.8f
-
 #define PUNP_SOUND_DEFAULT_SOUND_VOLUME 0.9f
 #define PUNP_SOUND_DEFAULT_MASTER_VOLUME 0.9f
 
-#define PUNP_WINDOW_WIDTH  (PUN_CANVAS_WIDTH  * PUN_CANVAS_SCALE)
-#define PUNP_WINDOW_HEIGHT (PUN_CANVAS_HEIGHT * PUN_CANVAS_SCALE)
 #define PUNP_FRAME_TIME    (1.0/30.0)
 
 // Set to 1 to output a audio.buf file from the mixer.
@@ -134,7 +130,7 @@ perf_delta(const PerfSpan *span)
 //
 
 void *
-file_read(const char *path, size_t *size)
+file_read(Bank *bank, const char *path, size_t *size)
 {
     FILE *f = fopen(path, "rb");
     if (f) {
@@ -142,7 +138,12 @@ file_read(const char *path, size_t *size)
         *size = ftell(f);
         fseek(f, 0L, SEEK_SET);
 
-        u8 *ptr = malloc(*size + 1);
+        u8 *ptr;
+        if (bank == 0) {
+            ptr = malloc(*size + 1);
+        } else {
+            ptr = bank_push(bank, *size + 1);
+        }
         size_t read = fread(ptr, 1, *size, f);
         fclose(f);
         ASSERT(read == *size);
@@ -267,6 +268,7 @@ bank_push(Bank *stack, u32 size)
     ASSERT(stack->begin);
     if ((stack->end - stack->it) < size) {
         printf("Not enought memory in bank (%d required, %d available).\n", (int)(stack->end - stack->it), size);
+        // TODO: Change this to PUN_FAIL
         ASSERT(0);
         return 0;
     }
@@ -303,14 +305,14 @@ bank_end(BankState *state)
 // Graphics types
 //
 
-Color
+extern inline Color
 color_make(u8 r, u8 g, u8 b, u8 a)
 {
-    Color c = {{COLOR_CHANNELS}};
+    Color c = {PUN_COLOR_CHANNELS};
     return c;
 }
 
-Color
+extern inline Color
 color_lerp(Color from, Color to, f32 t)
 {
     from.r = (i32)(255.0f * lerp((f32)from.r/255.0f, (f32)to.r/255.0f, t));
@@ -533,35 +535,6 @@ draw_list_end(DrawList *list)
     CORE->canvas = canvas;
 }
 
-#if 0
-void *
-draw_list_push(DrawList *list, i32 z, size_t size)
-{
-    if (list->items_count == list->items_reserve) {
-        printf("Not enough space for new items in draw_list_push.\n");
-        printf("Allocating more space for next frame.\n");
-        list->items_reserve += 8;
-        return 0;
-    }
-
-    DrawListItem_ *item = list->items[list->items_count++];
-    item->data = bank_push(CORE->stack, size);
-    item->data_size = size;
-    item->z = z;
-
-    return item->data;
-}
-
-void
-draw_list_add(DrawList *list, i32 z, void *data, size_t size)
-{
-    void *dest = draw_list_push(list, z, size);
-    if (dest) {
-        memcpy(dest, data, size);
-    }
-}
-#endif
-
 //
 // Pushed draw functions
 //
@@ -590,6 +563,44 @@ draw_list_push_(DrawList *list, i32 z, u32 type)
     return item;
 }
 
+//
+// V2f
+//
+
+V2f
+v2f_make(f32 x, f32 y)
+{
+    V2f v;
+    v.x = x;
+    v.y = y;
+    return v;
+}
+
+f32
+v2f_length(V2f v)
+{
+    return sqrtf((v.x * v.x) + (v.y * v.y));
+}
+
+V2f
+v2f_normalize(V2f v)
+{
+    f32 length = v2f_length(v);
+    V2f ret = v2f_make(v.x / length, v.y / length);
+    return ret;
+}
+
+f32
+v2f_angle(V2f v)
+{
+    return atan2f(v.y, v.x);
+}
+
+V2f
+v2f_minus(V2f a, V2f b)
+{
+    return v2f_make( a.x - b.x, a.y - b.y );
+}
 
 //
 // Canvas
@@ -669,6 +680,10 @@ shift_colors(Bitmap *bitmap)
 
 }
 
+//
+// Canvas
+//
+
 void
 canvas_clear(u8 color)
 {
@@ -712,10 +727,6 @@ frame_draw(Rect r, u8 color)
 
 }
 
-// void image_set_draw(i32 x, i32 y, ImageSet *set, u16 index, u8 mode, u8 mask, V4i *clip)
-
-#if 1
-
 void
 bitmap_draw(Bitmap *src_bitmap, i32 x, i32 y, i32 pivot_x, i32 pivot_y, Rect *bitmap_rect, u32 flags, u8 color)
 {
@@ -730,24 +741,24 @@ bitmap_draw(Bitmap *src_bitmap, i32 x, i32 y, i32 pivot_x, i32 pivot_y, Rect *bi
         src_r = rect_make_size(0, 0, src_bitmap->width, src_bitmap->height);
     }
 
-    Rect dst_r = rect_make_size(x - pivot_x, y - pivot_y,
+	Bitmap *dst_bitmap = CORE->canvas.bitmap;
+	Rect dst_r = rect_make_size(x - pivot_x, y - pivot_y,
                                 src_r.max_x - src_r.min_x,
-                                src_r.max_y - src_r.min_y);
+                                minimum(dst_bitmap->height, src_r.max_y - src_r.min_y));
     rect_tr(&dst_r, CORE->canvas.translate_x, CORE->canvas.translate_y);
     i32 src_ox = 0;
     i32 src_oy = 0;
     if (clip_rect_with_offsets(&dst_r, &CORE->canvas.clip, &src_ox, &src_oy))
     {
-        Bitmap *dst_bitmap = CORE->canvas.bitmap;
         i32 dst_w = dst_r.max_x - dst_r.min_x;
         i32 dst_h = dst_r.max_y - dst_r.min_y;
         i32 src_w = src_r.max_x - src_r.min_x;
         i32 src_h = src_r.max_y - src_r.min_y;
 
-		i32 dst_step_y = dst_bitmap->width - dst_w;
-		i32 dst_step_x = +1;
+        i32 dst_step_y = dst_bitmap->width - dst_w;
+        i32 dst_step_x = +1;
         u8 *dst = dst_bitmap->pixels;
-		dst += dst_r.min_x + (dst_r.min_y * dst_bitmap->width);
+        dst += dst_r.min_x + (dst_r.min_y * dst_bitmap->width);
 
         i32 src_step_y, src_step_x;
         u8 *src = src_bitmap->pixels;
@@ -762,129 +773,50 @@ bitmap_draw(Bitmap *src_bitmap, i32 x, i32 y, i32 pivot_x, i32 pivot_y, Rect *bi
             src_r.min_x += src_ox;
             src_r.max_x = src_r.min_x + dst_w;
             src += src_r.min_x;
-			src_step_y = -dst_w;
+            src_step_y = -dst_w;
             src_step_x = +1;
         }
 
         if (flags & DrawFlags_FlipV) {
             src_r.min_y += src_h - dst_h - src_oy;
             src_r.max_y = src_r.min_y + dst_h;
-			src += (src_r.max_y-1) * src_bitmap->width;
-			src_step_y += -src_bitmap->width;
+            src += (src_r.max_y-1) * src_bitmap->width;
+            src_step_y += -src_bitmap->width;
         } else {
             src_r.min_y += src_oy;
             src_r.max_y = src_r.min_y + dst_h;
-			src += src_r.min_y * src_bitmap->width;
-			src_step_y += src_bitmap->width;
-		}
+            src += src_r.min_y * src_bitmap->width;
+            src_step_y += src_bitmap->width;
+        }
 
         i32 y_, x_;
 
-		if (flags & DrawFlags_Mask)
-		{
-			for (y_ = 0; y_ != dst_h; ++y_) {
-				for (x_ = 0; x_ != dst_w; ++x_) {
-					*dst = *src ? color : *dst;
-					src += src_step_x;
-					dst += dst_step_x;
-				}
-				dst += dst_step_y;
-				src += src_step_y;
-			}
-		}
-		else
-		{
-			for (y_ = 0; y_ != dst_h; ++y_) {
-				for (x_ = 0; x_ != dst_w; ++x_) {
-					*dst = *src ? *src : *dst;
-					src += src_step_x;
-					dst += dst_step_x;
-				}
-				dst += dst_step_y;
-				src += src_step_y;
-			}
-		}
-    }
-}
-
-#else
-
-#define PUNP_BLIT(color, source_increment) \
-    for (punp_blit_y = 0; punp_blit_y != h; ++punp_blit_y) { \
-        for (punp_blit_x = 0; punp_blit_x != w; ++punp_blit_x) { \
-            dst[punp_blit_x] = *src ? color : dst[punp_blit_x]; \
-            source_increment; \
-        } \
-        dst += dst_fill; \
-        src += src_fill; \
-    }
-
-void
-bitmap_draw(Bitmap *bitmap, i32 x, i32 y, i32 pivot_x, i32 pivot_y, Rect *bitmap_rect, u32 flags, u8 color)
-{
-    ASSERT(bitmap);
-    ASSERT(clip_check());
-
-    Rect p_bitmap_rect;
-    if (bitmap_rect) {
-        ASSERT(rect_check_limits(bitmap_rect, 0, 0, bitmap->width, bitmap->height));
-        p_bitmap_rect = *bitmap_rect;
-    } else {
-        p_bitmap_rect = rect_make_size(0, 0, bitmap->width, bitmap->height);
-    }
-
-    Rect rect = rect_make_size(x - pivot_x, y - pivot_y,
-                               p_bitmap_rect.max_x - p_bitmap_rect.min_x,
-                               p_bitmap_rect.max_y - p_bitmap_rect.min_y);
-
-    rect_tr(&rect, CORE->canvas.translate_x, CORE->canvas.translate_y);
-    i32 sx = 0;
-    i32 sy = 0;
-    if (clip_rect_with_offsets(&rect, &CORE->canvas.clip, &sx, &sy))
-    {
-        i32 w = rect.max_x - rect.min_x;
-        i32 h = rect.max_y - rect.min_y;
-
-        // i32 sw = (p_bitmap_rect.max_x - p_bitmap_rect.min_x) - sx;
-        // i32 sh = (p_bitmap_rect.max_y - p_bitmap_rect.min_y) - sy;
-
-        u32 dst_fill = CORE->canvas.bitmap->width;
-        u8 *dst = CORE->canvas.bitmap->pixels + rect.min_x + (rect.min_y * dst_fill);
-
-        i32 punp_blit_x, punp_blit_y;
-        if ((flags & DrawFlags_FlipH) == 0)
+        if (flags & DrawFlags_Mask)
         {
-			sx += p_bitmap_rect.left;
-			sy += p_bitmap_rect.top;
-			u32 src_fill = bitmap->width - w;
-            u8 *src = bitmap->pixels + (sx + (sy * bitmap->width));
-            if (flags & DrawFlags_Mask) {
-                PUNP_BLIT(color, src++);
-            } else {
-                PUNP_BLIT(*src, src++);
+            for (y_ = 0; y_ != dst_h; ++y_) {
+                for (x_ = 0; x_ != dst_w; ++x_) {
+                    *dst = *src ? color : *dst;
+                    src += src_step_x;
+                    dst += dst_step_x;
+                }
+                dst += dst_step_y;
+                src += src_step_y;
             }
         }
         else
         {
-			i32 sw = p_bitmap_rect.max_x - p_bitmap_rect.min_x;
-			sx = (sw - w - sx) + p_bitmap_rect.left;
-			sy += p_bitmap_rect.top;
-			u32 src_fill = bitmap->width + w;
-            u8 *src = bitmap->pixels
-                      + (sx + (sy * bitmap->width))
-                      + (w - 1);
-
-            if (flags & DrawFlags_Mask) {
-                PUNP_BLIT(color, src--);
-            } else {
-                PUNP_BLIT(*src, src--);
+            for (y_ = 0; y_ != dst_h; ++y_) {
+                for (x_ = 0; x_ != dst_w; ++x_) {
+                    *dst = *src ? *src : *dst;
+                    src += src_step_x;
+                    dst += dst_step_x;
+                }
+                dst += dst_step_y;
+                src += src_step_y;
             }
         }
     }
 }
-
-#undef PUNP_BLIT
-#endif
 
 void
 bitmap_draw_push(
@@ -942,6 +874,46 @@ text_draw(const char *text, i32 x, i32 y, u8 color)
                 break;
         }
         text++;
+    }
+}
+
+void
+text_draw_attr(const char *text, i32 x, i32 y, TextAttr *attrs, size_t length)
+{
+    ASSERT(CORE->canvas.font);
+    Font *font = CORE->canvas.font;
+    i32 columns = font->bitmap.width / font->char_width;
+    i32 dx = x;
+    i32 dy = y;
+    Rect glyph_r, bg_r;
+
+    char glyph;
+    while (length) {
+        glyph = clamp(*text, 0, 127);
+        switch (glyph) {
+            case '\n':
+                dx = x;
+                dy += font->char_height;
+                break;
+            default:
+                bg_r = rect_make_size(dx, dy, font->char_width, font->char_height);
+                rect_draw(bg_r, attrs->bg);
+
+                if (glyph != 0 && glyph != ' ')
+                {
+                    glyph_r.left = (glyph % columns) * font->char_width;
+                    glyph_r.top = (glyph / columns) * font->char_height;
+                    glyph_r.right = glyph_r.left + font->char_width;
+                    glyph_r.bottom = glyph_r.top + font->char_height;
+                    bitmap_draw(&font->bitmap, dx, dy, 0, 0, &glyph_r, DrawFlags_Mask, attrs->fg);
+                }
+
+                dx += font->char_width;
+                break;
+        }
+        length--;
+        text++;
+        attrs++;
     }
 }
 
@@ -1233,7 +1205,7 @@ punp_sound_mix(i16 *buffer, size_t samples_count)
     size_t sound_samples;
     size_t sound_samples_remaining;
     size_t loop_samples;
-	Sound *sound = 0;
+    Sound *sound = 0;
     PunPAudioSource **it = &punp_audio_source_playback;
     PunPAudioSource *source;
 
@@ -1247,7 +1219,7 @@ punp_sound_mix(i16 *buffer, size_t samples_count)
 
         sound = source->sound;
 
-		loop_samples = samples_count;
+        loop_samples = samples_count;
 
 loop:;
         sound_samples = loop_samples;
@@ -1282,12 +1254,6 @@ loop:;
         }
 
         source->position += maximum(1, sound_samples * source->rate);
-
-        // printf("Sound %s position %d count %d played %f\n",
-        //     sound->name,
-        //     source->position,
-        //     sound->samples_count,
-        //     sound_samples * source->rate);
         
         ASSERT(source->position <= sound->samples_count);
         if (source->position == sound->samples_count)
@@ -1296,10 +1262,7 @@ loop:;
                 source->position = 0;
                 ASSERT(loop_samples >= sound_samples);
                 loop_samples -= sound_samples;
-                if (loop_samples == 0) {
-                    // printf("Finished looping in buffer.\n");
-                } else {
-                    // printf("Looping in buffer. %d\n", loop_samples);
+                if (loop_samples != 0) {
                     goto loop;
                 }
             } else {
@@ -1308,7 +1271,6 @@ loop:;
                 source->next = punp_audio_source_pool;
                 punp_audio_source_pool = source;
             }
-            // printf("Stopping sound `%s`\n", sound->name);
         }
         else
         {
@@ -1320,24 +1282,21 @@ loop:;
     // Put to output buffer, clamp and convert to 16-bit.
     //
 
-// #define MIX_CLIP_(in, clip) (0.5 * (abs(in + clip) - abs(in - clip)) * CORE->audio_volume)
-
-	it0 = channel0;
-	it1 = channel1;
-	f32 s1, s2;
-	i16 *it_buffer = buffer;
-	for (i = 0; i != samples_count; ++i)
+    it0 = channel0;
+    it1 = channel1;
+    f32 s1, s2;
+    i16 *it_buffer = buffer;
+    for (i = 0; i != samples_count; ++i)
     {
-		s1 = *it0++ * CORE->audio_volume;
-		s2 = *it1++ * CORE->audio_volume;
-		*it_buffer++ = (i16)clamp(s1, -32768, 32767);
-		*it_buffer++ = (i16)clamp(s2, -32768, 32767);
-	}
+        s1 = *it0++ * CORE->audio_volume;
+        s2 = *it1++ * CORE->audio_volume;
+        *it_buffer++ = (i16)clamp(s1, -32768, 32767);
+        *it_buffer++ = (i16)clamp(s2, -32768, 32767);
+    }
 // #undef MIX_CLIP_
 
     bank_end(&bank_state);
 }
-
 
 //
 // Windows
@@ -1353,63 +1312,9 @@ loop:;
 static HINSTANCE punp_win32_instance = 0;
 static HWND punp_win32_window = 0;
 static i64 punp_win32_perf_counter_frequency;
+static WINDOWPLACEMENT punp_win32_window_fullscreen_placement = {sizeof(WINDOWPLACEMENT)};
 
-//
-// Input
-//
-
-static u32
-win32_app_key_mods()
-{
-    u32 mods = 0;
-
-    if (GetKeyState(VK_SHIFT) & (1 << 31))
-        mods |= KEY_MOD_SHIFT;
-    if (GetKeyState(VK_CONTROL) & (1 << 31))
-        mods |= KEY_MOD_CONTROL;
-    if (GetKeyState(VK_MENU) & (1 << 31))
-        mods |= KEY_MOD_ALT;
-    if ((GetKeyState(VK_LWIN) | GetKeyState(VK_RWIN)) & (1 << 31))
-        mods |= KEY_MOD_SUPER;
-
-    return mods;
-}
-
-static LRESULT CALLBACK
-win32_window_callback(HWND window, UINT message, WPARAM wp, LPARAM lp)
-{
-    switch (message) {
-        case WM_KEYDOWN: {
-            CORE->key_modifiers = win32_app_key_mods();
-            if (wp < PUN_KEYS_MAX) {
-                CORE->key_states[wp] = 1;
-                CORE->key_deltas[wp] = 1;
-                // printf("key pressed: %d\n", wp);
-            }
-            return 0;
-        }
-            break;
-
-        case WM_KEYUP: {
-            CORE->key_modifiers = win32_app_key_mods();
-            if (wp < PUN_KEYS_MAX) {
-                CORE->key_states[wp] = 0;
-                CORE->key_deltas[wp] = 1;
-                // printf("key released: %d\n", wp);
-            }
-            return 0;
-        }
-            break;
-
-        case WM_CLOSE: {
-            PostQuitMessage(0);
-            CORE->running = 0;
-        }
-            break;
-    }
-
-    return DefWindowProcA(window, message, wp, lp);
-}
+#define PUNP_WIN32_DEFAULT_STYLE (WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX)
 
 f64
 perf_get()
@@ -1621,13 +1526,589 @@ punp_win32_sound_step()
                                range2, range2_size);
 
     punp_win32_audio_cursor = lock_cursor;
-
-//  static playing = 0;
-//  if (playing == 0) {
-//      IDirectSoundBuffer8_Play(punp_win32_audio_buffer, 0, 0, DSBPLAY_LOOPING);
-//      playing = 1;
-//  }
 }
+
+//
+//
+//
+
+#if PUN_PLATFORM_WINDOWS_D3D
+
+#define COBJMACROS
+
+#include <d3d11.h>
+#include <dxgi.h>
+// #pragma comment(lib, "d3d11.lib")
+
+u8 punp_win32_d3d_vertex_shader_data[] = 
+{
+    0x44, 0x58, 0x42, 0x43, 0xe9, 0xbb, 0x34, 0xe5, 0xd7, 0x73, 0x53, 0xa4,
+    0x62, 0x83, 0xa0, 0xd3, 0xcf, 0xef, 0x25, 0x60, 0x01, 0x00, 0x00, 0x00,
+    0x88, 0x03, 0x00, 0x00, 0x05, 0x00, 0x00, 0x00, 0x34, 0x00, 0x00, 0x00,
+    0x8c, 0x00, 0x00, 0x00, 0xc0, 0x00, 0x00, 0x00, 0x18, 0x01, 0x00, 0x00,
+    0x0c, 0x03, 0x00, 0x00, 0x52, 0x44, 0x45, 0x46, 0x50, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x1c, 0x00, 0x00, 0x00, 0x00, 0x04, 0xfe, 0xff, 0x00, 0x01, 0x00, 0x00,
+    0x1c, 0x00, 0x00, 0x00, 0x4d, 0x69, 0x63, 0x72, 0x6f, 0x73, 0x6f, 0x66,
+    0x74, 0x20, 0x28, 0x52, 0x29, 0x20, 0x48, 0x4c, 0x53, 0x4c, 0x20, 0x53,
+    0x68, 0x61, 0x64, 0x65, 0x72, 0x20, 0x43, 0x6f, 0x6d, 0x70, 0x69, 0x6c,
+    0x65, 0x72, 0x20, 0x36, 0x2e, 0x33, 0x2e, 0x39, 0x36, 0x30, 0x30, 0x2e,
+    0x31, 0x36, 0x33, 0x38, 0x34, 0x00, 0xab, 0xab, 0x49, 0x53, 0x47, 0x4e,
+    0x2c, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x08, 0x00, 0x00, 0x00,
+    0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x06, 0x00, 0x00, 0x00,
+    0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x01, 0x00, 0x00,
+    0x53, 0x56, 0x5f, 0x56, 0x45, 0x52, 0x54, 0x45, 0x58, 0x49, 0x44, 0x00,
+    0x4f, 0x53, 0x47, 0x4e, 0x50, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00,
+    0x08, 0x00, 0x00, 0x00, 0x38, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x01, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x0f, 0x00, 0x00, 0x00, 0x44, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00,
+    0x03, 0x0c, 0x00, 0x00, 0x53, 0x56, 0x5f, 0x50, 0x4f, 0x53, 0x49, 0x54,
+    0x49, 0x4f, 0x4e, 0x00, 0x54, 0x45, 0x58, 0x43, 0x4f, 0x4f, 0x52, 0x44,
+    0x00, 0xab, 0xab, 0xab, 0x53, 0x48, 0x44, 0x52, 0xec, 0x01, 0x00, 0x00,
+    0x40, 0x00, 0x01, 0x00, 0x7b, 0x00, 0x00, 0x00, 0x60, 0x00, 0x00, 0x04,
+    0x12, 0x10, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x06, 0x00, 0x00, 0x00,
+    0x67, 0x00, 0x00, 0x04, 0xf2, 0x20, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x01, 0x00, 0x00, 0x00, 0x65, 0x00, 0x00, 0x03, 0x32, 0x20, 0x10, 0x00,
+    0x01, 0x00, 0x00, 0x00, 0x68, 0x00, 0x00, 0x02, 0x01, 0x00, 0x00, 0x00,
+    0x69, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00,
+    0x04, 0x00, 0x00, 0x00, 0x69, 0x00, 0x00, 0x04, 0x01, 0x00, 0x00, 0x00,
+    0x04, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x36, 0x00, 0x00, 0x09,
+    0x32, 0x30, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x02, 0x40, 0x00, 0x00, 0x00, 0x00, 0x80, 0xbf, 0x00, 0x00, 0x80, 0xbf,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x36, 0x00, 0x00, 0x09,
+    0x32, 0x30, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00,
+    0x02, 0x40, 0x00, 0x00, 0x00, 0x00, 0x80, 0xbf, 0x00, 0x00, 0x80, 0x3f,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x36, 0x00, 0x00, 0x09,
+    0x32, 0x30, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00,
+    0x02, 0x40, 0x00, 0x00, 0x00, 0x00, 0x80, 0x3f, 0x00, 0x00, 0x80, 0xbf,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x36, 0x00, 0x00, 0x09,
+    0x32, 0x30, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00,
+    0x02, 0x40, 0x00, 0x00, 0x00, 0x00, 0x80, 0x3f, 0x00, 0x00, 0x80, 0x3f,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x36, 0x00, 0x00, 0x09,
+    0x32, 0x30, 0x20, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x02, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0x3f,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x36, 0x00, 0x00, 0x09,
+    0x32, 0x30, 0x20, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00,
+    0x02, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x36, 0x00, 0x00, 0x09,
+    0x32, 0x30, 0x20, 0x00, 0x01, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00,
+    0x02, 0x40, 0x00, 0x00, 0x00, 0x00, 0x80, 0x3f, 0x00, 0x00, 0x80, 0x3f,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x36, 0x00, 0x00, 0x09,
+    0x32, 0x30, 0x20, 0x00, 0x01, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00,
+    0x02, 0x40, 0x00, 0x00, 0x00, 0x00, 0x80, 0x3f, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x36, 0x00, 0x00, 0x05,
+    0x12, 0x00, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0a, 0x10, 0x10, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x36, 0x00, 0x00, 0x07, 0x32, 0x20, 0x10, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x46, 0x30, 0x20, 0x04, 0x00, 0x00, 0x00, 0x00,
+    0x0a, 0x00, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x36, 0x00, 0x00, 0x07,
+    0x32, 0x20, 0x10, 0x00, 0x01, 0x00, 0x00, 0x00, 0x46, 0x30, 0x20, 0x04,
+    0x01, 0x00, 0x00, 0x00, 0x0a, 0x00, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x36, 0x00, 0x00, 0x08, 0xc2, 0x20, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x02, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0x3f, 0x3e, 0x00, 0x00, 0x01,
+    0x53, 0x54, 0x41, 0x54, 0x74, 0x00, 0x00, 0x00, 0x0d, 0x00, 0x00, 0x00,
+    0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x08, 0x00, 0x00, 0x00, 0x0a, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00
+};
+
+#define PUNP_SAFE_RELEASE(X) if ((X)) { IUnknown_Release((IUnknown*)(X)); X = NULL; }
+
+// Defined here so we don't have to include uuid.lib.
+// #ifndef __GNUC__
+const GUID IID_IDXGIFactory = { 0x7b7166ec, 0x21c7, 0x44ae, 0xb2, 0x1a, 0xc9, 0xae, 0x32, 0x1a, 0xe3,0x69 };
+const GUID IID_ID3D11Texture2D = { 0x6f15aaf2, 0xd208, 0x4e89, 0x9a, 0xb4, 0x48, 0x95, 0x35, 0xd3, 0x4f, 0x9c };
+// #if
+#ifndef IUnknown_Release
+#define IUnknown_Release(This) (This)->lpVtbl->Release(This)
+#endif
+// #endif
+
+typedef HRESULT(WINAPI *PFN_CREATE_DXGI_FACTORY)(REFIID riid, void **ppFactory);
+
+PUN_ALIGN_(16)
+typedef struct PUNP_Win32D3DFrameConstant
+{
+    float time;
+    float scale;
+    float size[2];
+
+#ifdef PUN_SHADER_TYPE
+    PUN_SHADER_TYPE shader;
+#endif
+}
+PUNP_Win32D3DFrameConstant;
+
+typedef struct
+{
+    void *dll_d3d;
+    void *dll_dxgi;
+    PFN_D3D11_CREATE_DEVICE f_create_device;
+    PFN_CREATE_DXGI_FACTORY f_create_dxgi_factory;
+
+    IDXGISwapChain* swap_chain;
+
+    ID3D11Device* device;
+    ID3D11DeviceContext* device_context;
+    ID3D11RenderTargetView* render_target_view;
+    ID3D11VertexShader* vertex_shader;
+    ID3D11PixelShader* pixel_shader;
+    ID3D11RasterizerState* rasterizer_state;
+    ID3D11SamplerState* sampler_state;
+    ID3D11Texture2D* frame_buffer;
+    ID3D11ShaderResourceView* frame_buffer_view;
+    ID3D11Buffer* constant_buffer;
+
+    PUNP_Win32D3DFrameConstant frame_constant;
+}
+PUNP_Win32D3D;
+
+PUNP_Win32D3D punp_win32_d3d = {0};
+
+static int
+punp_win32_d3d_load()
+{
+    PUNP_Win32D3D *D = &punp_win32_d3d;
+    
+    D->dll_d3d = LoadLibraryA("d3d11.dll");
+    if (!D->dll_d3d) {
+        printf("LoadLibraryA(\"d3d11.dll\") failed.\n");
+        return 0;
+    }
+
+    D->f_create_device = (PFN_D3D11_CREATE_DEVICE)GetProcAddress(D->dll_d3d, "D3D11CreateDevice");
+    if (!D->f_create_device) {
+        printf("GetProcAddress(D3D11CreateDevice) failed.\n");
+        return 0;
+    }
+
+    D->dll_dxgi = LoadLibraryA("dxgi.dll");
+    if (!D->dll_dxgi) {
+        printf("LoadLibraryA(\"dxgi.dll\") failed.\n");
+        return 0;
+    }
+
+    D->f_create_dxgi_factory = (PFN_CREATE_DXGI_FACTORY)GetProcAddress(D->dll_dxgi, "CreateDXGIFactory");
+    if (!D->f_create_dxgi_factory) {
+        printf("GetProcAddress(CreateDXGIFactory) failed.\n");
+        return 0;
+    }
+
+    return 1;
+}
+
+static int
+punp_win32_d3d_update_render_target()
+{
+    PUNP_Win32D3D *D = &punp_win32_d3d;
+    ID3D11Texture2D *back_buffer;
+    HRESULT r;
+
+    PUNP_SAFE_RELEASE(D->render_target_view);
+
+    r = IDXGISwapChain_GetBuffer(D->swap_chain, 0, &IID_ID3D11Texture2D, (void**)&back_buffer);
+    if (FAILED(r)) {
+        printf("IDXGISwapChain_GetBuffer(D->swap_chain, 0, &IID_ID3D11Texture2D, &back_buffer) failed.\n");
+        return 0;
+    }
+
+    r = ID3D11Device_CreateRenderTargetView(D->device, (ID3D11Resource *)back_buffer, 0, &D->render_target_view);
+    PUNP_SAFE_RELEASE(back_buffer);
+
+    if (FAILED(r)) {
+        printf("ID3D11Device_CreateRenderTargetView failed.\n");
+        return 0;
+    }
+
+    return 1;
+}
+
+static int
+punp_win32_d3d_update_resources()
+{
+    PUNP_Win32D3D *D = &punp_win32_d3d;
+
+    PUNP_SAFE_RELEASE(D->swap_chain);
+    PUNP_SAFE_RELEASE(D->device);
+    PUNP_SAFE_RELEASE(D->device_context);
+    PUNP_SAFE_RELEASE(D->vertex_shader);
+    PUNP_SAFE_RELEASE(D->pixel_shader);
+    PUNP_SAFE_RELEASE(D->sampler_state);
+    PUNP_SAFE_RELEASE(D->frame_buffer);
+    PUNP_SAFE_RELEASE(D->rasterizer_state);
+    PUNP_SAFE_RELEASE(D->frame_buffer_view);
+    PUNP_SAFE_RELEASE(D->constant_buffer);
+
+    D3D_FEATURE_LEVEL feature_levels[] =
+    {
+        D3D_FEATURE_LEVEL_11_0,
+        D3D_FEATURE_LEVEL_10_1,
+        D3D_FEATURE_LEVEL_10_0
+    };
+
+    D3D_FEATURE_LEVEL feature_level;
+
+    HRESULT r;
+
+    r = D->f_create_device(
+        0, // pAdapter
+        D3D_DRIVER_TYPE_HARDWARE,
+        0,
+        0,
+        feature_levels,
+        array_count(feature_levels),
+        D3D11_SDK_VERSION,
+        &D->device,
+        &feature_level,
+        &D->device_context);
+
+    if (FAILED(r)) {
+        printf("D3D11CreateDevice failed.\n");
+        return 0;
+    }
+
+    if (feature_level == 0) {
+        printf("Unsupported D3D feature level.\n");
+        return 0;
+    }
+
+    IDXGIFactory* dxgi_factory;
+    r = D->f_create_dxgi_factory(&IID_IDXGIFactory, (void**)&dxgi_factory);
+    if (FAILED(r)) {
+        printf("CreateDXGIFactory failed.\n");
+        return 0;
+    }
+
+    DXGI_SWAP_CHAIN_DESC swp_desc;
+    swp_desc.BufferDesc.Width                   = 0;
+    swp_desc.BufferDesc.Height                  = 0;
+    swp_desc.BufferDesc.RefreshRate.Numerator   = 0;
+    swp_desc.BufferDesc.RefreshRate.Denominator = 0;
+    swp_desc.BufferDesc.Format                  = DXGI_FORMAT_B8G8R8A8_UNORM;
+    swp_desc.BufferDesc.ScanlineOrdering        = DXGI_MODE_SCANLINE_ORDER_UNSPECIFIED;
+    swp_desc.BufferDesc.Scaling                 = DXGI_MODE_SCALING_UNSPECIFIED;
+    swp_desc.SampleDesc.Count                   = 1;
+    swp_desc.SampleDesc.Quality                 = 0;
+    swp_desc.BufferUsage                        = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+    swp_desc.BufferCount                        = 2;
+    swp_desc.OutputWindow                       = punp_win32_window;
+    swp_desc.Windowed                           = TRUE;
+     // DXGI_SWAP_EFFECT_SEQUENTIAL
+    swp_desc.SwapEffect                         = DXGI_SWAP_EFFECT_DISCARD;
+    swp_desc.Flags                              = 0;
+
+    r = IDXGIFactory_CreateSwapChain(dxgi_factory, (IUnknown*)D->device, &swp_desc, &D->swap_chain);
+    if (FAILED(r)) {
+        printf("IDXGIFactory_CreateSwapChain failed.\n");
+        return 0;
+    }
+
+    punp_win32_d3d_update_render_target();
+
+    ID3D11Device_CreateVertexShader(D->device, punp_win32_d3d_vertex_shader_data, sizeof(punp_win32_d3d_vertex_shader_data), 0, &D->vertex_shader);
+
+    // punp_win32_d3d_pixel_shader_data
+    size_t pixel_shader_size;
+    u8 *pixel_shader = resource_get("default.cso", &pixel_shader_size);
+    ID3D11Device_CreatePixelShader(D->device, pixel_shader, pixel_shader_size, 0, &D->pixel_shader);
+
+    D3D11_RASTERIZER_DESC rasterizer_desc;
+    rasterizer_desc.FillMode                = D3D11_FILL_SOLID;
+    rasterizer_desc.CullMode                = D3D11_CULL_NONE;
+    rasterizer_desc.FrontCounterClockwise   = FALSE;
+    rasterizer_desc.DepthBias               = 0;
+    rasterizer_desc.DepthBiasClamp          = 0.0f;
+    rasterizer_desc.SlopeScaledDepthBias    = 0.0f;
+    rasterizer_desc.DepthClipEnable         = FALSE;
+    rasterizer_desc.ScissorEnable           = FALSE;
+    rasterizer_desc.MultisampleEnable       = FALSE;
+    rasterizer_desc.AntialiasedLineEnable   = FALSE;
+
+    ID3D11Device_CreateRasterizerState(D->device, &rasterizer_desc, &D->rasterizer_state);
+
+    D3D11_SAMPLER_DESC sampler_desc;
+    sampler_desc.Filter =                                D3D11_FILTER_MIN_MAG_MIP_POINT;
+    // D3D11_TEXTURE_ADDRESS_WRAP
+    sampler_desc.AddressU =                              D3D11_TEXTURE_ADDRESS_BORDER;
+    sampler_desc.AddressV =                              D3D11_TEXTURE_ADDRESS_BORDER;
+    sampler_desc.AddressW =                              D3D11_TEXTURE_ADDRESS_BORDER;
+    sampler_desc.MipLODBias =                            0.0f;
+    sampler_desc.MaxAnisotropy =                         0;
+    sampler_desc.ComparisonFunc =                        D3D11_COMPARISON_ALWAYS;
+    sampler_desc.BorderColor[0] =                        0.0f;
+    sampler_desc.BorderColor[1] =                        0.0f;
+    sampler_desc.BorderColor[2] =                        0.0f;
+    sampler_desc.BorderColor[3] =                        0.0f;
+    sampler_desc.MinLOD =                                0.0f;
+    sampler_desc.MaxLOD =                                D3D11_FLOAT32_MAX;
+
+    ID3D11Device_CreateSamplerState(D->device, &sampler_desc, &D->sampler_state);
+
+    D3D11_TEXTURE2D_DESC texture_desc;
+    texture_desc.Width =                                 PUN_CANVAS_WIDTH;
+    texture_desc.Height =                                PUN_CANVAS_HEIGHT;
+    texture_desc.MipLevels =                             1;
+    texture_desc.ArraySize =                             1;
+    texture_desc.Format =                                DXGI_FORMAT_B8G8R8A8_UNORM;
+    texture_desc.SampleDesc.Count =                      1;
+    texture_desc.SampleDesc.Quality =                    0;
+    texture_desc.Usage =                                 D3D11_USAGE_DYNAMIC;
+    texture_desc.BindFlags =                             D3D11_BIND_SHADER_RESOURCE;
+    texture_desc.CPUAccessFlags =                        D3D11_CPU_ACCESS_WRITE;
+    texture_desc.MiscFlags =                             0;
+
+    ID3D11Device_CreateTexture2D(D->device, &texture_desc, 0, &D->frame_buffer);
+    ID3D11Device_CreateShaderResourceView(D->device, (ID3D11Resource*)D->frame_buffer, 0, &D->frame_buffer_view);
+
+    D3D11_BUFFER_DESC buffer_desc;
+    buffer_desc.ByteWidth =                             sizeof(PUNP_Win32D3DFrameConstant);
+    buffer_desc.Usage =                                 D3D11_USAGE_DYNAMIC;
+    buffer_desc.BindFlags =                             D3D11_BIND_CONSTANT_BUFFER;
+    buffer_desc.CPUAccessFlags =                        D3D11_CPU_ACCESS_WRITE;
+    buffer_desc.MiscFlags =                             0;
+    buffer_desc.StructureByteStride =                   0;
+
+    ID3D11Device_CreateBuffer(D->device, &buffer_desc, 0, &D->constant_buffer);
+
+    PUNP_SAFE_RELEASE(dxgi_factory);
+
+    return 1;
+}
+
+static int
+punp_win32_d3d_resize(UINT width, UINT height)
+{
+    PUNP_Win32D3D *D = &punp_win32_d3d;
+    PUNP_SAFE_RELEASE(D->render_target_view);
+    HRESULT r = IDXGISwapChain_ResizeBuffers(D->swap_chain, 0, width, height, DXGI_FORMAT_UNKNOWN, 0);
+	if (FAILED(r)) {
+		printf("IDXGISwapChain_ResizeBuffers failed.\n");
+		return 0;
+	}
+    return punp_win32_d3d_update_render_target();
+}
+
+static int
+punp_win32_d3d_render(u32 *buffer)
+{
+    PUNP_Win32D3D *D = &punp_win32_d3d;
+    D3D11_MAPPED_SUBRESOURCE frame_buffer;
+
+    ID3D11DeviceContext_Map(D->device_context,
+        (ID3D11Resource*)D->frame_buffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &frame_buffer);
+    int x, y;
+    u32 *row = frame_buffer.pData;
+    u32 fill = (frame_buffer.RowPitch / 4) - PUN_CANVAS_WIDTH;
+    u8 *canvas_it = CORE->canvas.bitmap->pixels;
+    for (y = 0; y != PUN_CANVAS_HEIGHT; ++y) {
+        for (x = 0; x != PUN_CANVAS_WIDTH; ++x) {
+            *(row++) = CORE->canvas.palette.colors[*canvas_it++].rgba;
+        }
+        row += fill;
+    }
+    ID3D11DeviceContext_Unmap(D->device_context, (ID3D11Resource*)D->frame_buffer, 0);
+
+    // D->frame_constant.color[0] = 1.0f;
+    // D->frame_constant.color[1] = 1.0f;
+    // D->frame_constant.color[2] = 1.0f;
+    // D->frame_constant.color[3] = 1.0f;
+
+    D->frame_constant.size[0]  = CORE->viewport_max_x - CORE->viewport_min_x;
+    D->frame_constant.size[1]  = CORE->viewport_max_y - CORE->viewport_min_y;
+
+    D->frame_constant.time = (f32)CORE->frame * (f32)PUNP_FRAME_TIME;
+    D->frame_constant.scale = (f32)CORE->viewport_scale;
+
+    D3D11_MAPPED_SUBRESOURCE constant_buffer;
+    ID3D11DeviceContext_Map(D->device_context,
+        (ID3D11Resource *)D->constant_buffer,
+        0, D3D11_MAP_WRITE_DISCARD, 0, &constant_buffer);
+    {
+        memcpy(constant_buffer.pData, &D->frame_constant, sizeof(PUNP_Win32D3DFrameConstant));
+    }
+    ID3D11DeviceContext_Unmap(D->device_context,
+        (ID3D11Resource *)D->constant_buffer,
+        0);
+
+    FLOAT background[] = {
+        (FLOAT)CORE->background.r / 255.0f,
+        (FLOAT)CORE->background.g / 255.0f,
+        (FLOAT)CORE->background.b / 255.0f,
+        1.0f };
+
+    ID3D11DeviceContext_ClearRenderTargetView(D->device_context, D->render_target_view, background);
+
+    DXGI_SWAP_CHAIN_DESC swp_desc;
+    IDXGISwapChain_GetDesc(D->swap_chain, &swp_desc);
+
+    // Calculate scale:
+    D3D11_VIEWPORT viewport;
+    viewport.Width    = CORE->viewport_max_x - CORE->viewport_min_x;
+    viewport.Height   = CORE->viewport_max_y - CORE->viewport_min_y;
+    viewport.TopLeftX = CORE->viewport_min_x;
+    viewport.TopLeftY = CORE->viewport_min_y;
+    viewport.MinDepth = 0.0f;
+    viewport.MaxDepth = 1.0f;
+    
+    ID3D11DeviceContext_IASetPrimitiveTopology(D->device_context, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
+    ID3D11DeviceContext_VSSetShader(D->device_context, D->vertex_shader, 0, 0);
+    ID3D11DeviceContext_RSSetViewports(D->device_context, 1, &viewport);
+    ID3D11DeviceContext_RSSetState(D->device_context, D->rasterizer_state);
+    ID3D11DeviceContext_PSSetConstantBuffers(D->device_context, 0, 1, &D->constant_buffer);
+    ID3D11DeviceContext_PSSetShader(D->device_context, D->pixel_shader, 0, 0);
+    ID3D11DeviceContext_PSSetShaderResources(D->device_context, 0, 1, &D->frame_buffer_view);
+    ID3D11DeviceContext_PSSetSamplers(D->device_context, 0, 1, &D->sampler_state);
+    ID3D11DeviceContext_OMSetRenderTargets(D->device_context, 1, &D->render_target_view, 0);
+
+    ID3D11DeviceContext_Draw(D->device_context, 4, 0);
+
+    HRESULT r = IDXGISwapChain_Present(D->swap_chain, 1, 0);
+
+    if (r != S_OK && r != DXGI_STATUS_OCCLUDED) {
+        return punp_win32_d3d_update_resources();
+    }
+    return 0;
+}
+
+#endif // PUN_PLATFORM_WINDOWS_D3D
+
+//
+//
+//
+
+void
+window_fullscreen_toggle()
+{
+    DWORD style = GetWindowLong(punp_win32_window, GWL_STYLE);
+    int normal = style & PUNP_WIN32_DEFAULT_STYLE;
+    if (normal)
+    {
+        MONITORINFO monitor_info = { sizeof(MONITORINFO) };
+        if (GetWindowPlacement(punp_win32_window, &punp_win32_window_fullscreen_placement) &&
+            GetMonitorInfo(MonitorFromWindow(punp_win32_window, MONITOR_DEFAULTTOPRIMARY), &monitor_info))
+        {
+            SetWindowLong(punp_win32_window, GWL_STYLE, style & ~PUNP_WIN32_DEFAULT_STYLE);
+            SetWindowPos(punp_win32_window, HWND_TOP,
+                         monitor_info.rcMonitor.left, monitor_info.rcMonitor.top,
+                         monitor_info.rcMonitor.right - monitor_info.rcMonitor.left,
+                         monitor_info.rcMonitor.bottom - monitor_info.rcMonitor.top,
+                         SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
+        }
+    }
+    else
+    {
+        // TODO: Check if we have `punp_win32_window_fullscreen_placement` stored,
+        //       otherwise we're in a fake full-screen.
+        SetWindowLong(punp_win32_window, GWL_STYLE, style | PUNP_WIN32_DEFAULT_STYLE);
+        SetWindowPlacement(punp_win32_window, &punp_win32_window_fullscreen_placement);
+        SetWindowPos(punp_win32_window, 0, 0, 0, 0, 0,
+                     SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER |
+                     SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
+    }
+}
+
+//
+// Input
+//
+
+static u32
+win32_app_key_mods()
+{
+    u32 mods = 0;
+
+    if (GetKeyState(VK_SHIFT) & (1 << 31))
+        mods |= KEY_MOD_SHIFT;
+    if (GetKeyState(VK_CONTROL) & (1 << 31))
+        mods |= KEY_MOD_CONTROL;
+    if (GetKeyState(VK_MENU) & (1 << 31))
+        mods |= KEY_MOD_ALT;
+    if ((GetKeyState(VK_LWIN) | GetKeyState(VK_RWIN)) & (1 << 31))
+        mods |= KEY_MOD_SUPER;
+
+    return mods;
+}
+
+static LRESULT CALLBACK
+win32_window_callback(HWND window, UINT message, WPARAM wp, LPARAM lp)
+{
+    switch (message) {
+        case WM_KEYDOWN: {
+            CORE->key_modifiers = win32_app_key_mods();
+            if (wp < PUN_KEYS_MAX) {
+                CORE->key_states[wp] = 1;
+                CORE->key_deltas[wp] = 1;
+                // printf("key pressed: %d\n", wp);
+            }
+            return 0;
+        }
+        break;
+
+        case WM_KEYUP: {
+            CORE->key_modifiers = win32_app_key_mods();
+            if (wp < PUN_KEYS_MAX) {
+                CORE->key_states[wp] = 0;
+                CORE->key_deltas[wp] = 1;
+                // printf("key released: %d\n", wp);
+            }
+            return 0;
+        }
+        break;
+
+        case WM_CHAR: {
+            if (CORE->key_text_length != array_count(CORE->key_text) && wp >= ' ') {
+#if PUN_TEXT_UNICODE
+                CORE->key_text[CORE->key_text_length] = (u32)wp;
+#else
+                CORE->key_text[CORE->key_text_length] = (char)wp;
+#endif
+                CORE->key_text_length++;
+            }
+            return 0;
+        }
+
+        case WM_CLOSE: {
+            PostQuitMessage(0);
+            CORE->running = 0;
+        }
+        break;
+
+        case WM_SIZE:
+        {
+            f32 width  = (UINT)(lp & 0xffff);
+            f32 height = (UINT)(lp >> 16);
+            
+            f32 scale_x = width  / PUN_CANVAS_WIDTH;
+            f32 scale_y = height / PUN_CANVAS_HEIGHT;
+            
+            CORE->viewport_scale = minimum(scale_x, scale_y);
+
+            f32 viewport_width  = PUN_CANVAS_WIDTH  * CORE->viewport_scale;
+            f32 viewport_height = PUN_CANVAS_HEIGHT * CORE->viewport_scale;
+
+            CORE->viewport_min_x = (width  - viewport_width) / 2;
+            CORE->viewport_min_y = (height - viewport_height) / 2;
+            CORE->viewport_max_x = CORE->viewport_min_x + viewport_width;
+            CORE->viewport_max_y = CORE->viewport_min_y + viewport_height;
+
+#if PUN_PLATFORM_WINDOWS_D3D
+            punp_win32_d3d_resize(width, height);
+#endif
+            return 0;
+        }
+        break;
+    }
+
+    return DefWindowProcA(window, message, wp, lp);
+}
+
 
 //
 //
@@ -1637,10 +2118,10 @@ punp_win32_sound_step()
 int CALLBACK
 WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR command_line, int show_code)
 {
-    if (align_to(PUN_CANVAS_WIDTH, 16) != PUN_CANVAS_WIDTH) {
-		ASSERT_MESSAGE(0, "PUN_CANVAS_WIDTH must be aligned to 16.");
-        return 1;
-    }
+    // if (align_to(PUN_CANVAS_WIDTH, 16) != PUN_CANVAS_WIDTH) {
+    //     ASSERT_MESSAGE(0, "PUN_CANVAS_WIDTH must be aligned to 16.");
+    //     return 1;
+    // }
 
     static Bank s_stack = {0};
     static Bank s_storage = {0};
@@ -1708,21 +2189,18 @@ WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR command_line, int sho
     int screen_width = GetSystemMetrics(SM_CXSCREEN);
     int screen_height = GetSystemMetrics(SM_CYSCREEN);
 
+    int window_width  = PUN_CANVAS_WIDTH  * PUN_CANVAS_SCALE;
+    int window_height = PUN_CANVAS_HEIGHT * PUN_CANVAS_SCALE;
 
     RECT rc;
-    rc.left = (screen_width - (PUNP_WINDOW_WIDTH)) / 2;
-    rc.top = (screen_height - (PUNP_WINDOW_HEIGHT)) / 2;
-    rc.right = rc.left + PUNP_WINDOW_WIDTH;
-    rc.bottom = rc.top + PUNP_WINDOW_HEIGHT;
+    rc.left   = (screen_width - window_width) / 2;
+    rc.top    = (screen_height - window_height) / 2;
+    rc.right  = rc.left + window_width;
+    rc.bottom = rc.top + window_height;
 
 
-    DWORD style = WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX;
+    DWORD style = PUNP_WIN32_DEFAULT_STYLE;
     assert(AdjustWindowRect(&rc, style, FALSE) != 0);
-
-    // int window_width  = rc.right - rc.left;
-    // int window_height = rc.bottom - rc.top;
-    // rc.left = (screen_width  - width) / 2;
-    // rc.top  = (screen_height - height) / 2;
 
     punp_win32_window = CreateWindowExA(
             0,
@@ -1763,6 +2241,22 @@ WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR command_line, int sho
     window_buffer = bank_push(CORE->stack, (PUN_CANVAS_WIDTH * 4) * PUN_CANVAS_HEIGHT);
     assert(window_buffer);
 
+    // DirectX
+#if PUN_PLATFORM_WINDOWS_D3D
+    if (punp_win32_d3d_load()) {
+        punp_win32_d3d_update_resources();
+    }
+#ifdef PUN_SHADER_TYPE
+    CORE->shader = &punp_win32_d3d.frame_constant.shader;
+#endif
+#else
+#ifdef PUN_SHADER_TYPE
+    // We're putting this here in case we're falling back to non D3D.
+    // This will make it a bit safer when there's core accessing the shader.
+    Shader shader = {0};
+    CORE->shader = &shader;
+#endif
+#endif
 
     // Sound
 
@@ -1815,6 +2309,7 @@ WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR command_line, int sho
         perf_to(&CORE->perf_audio);
 
         perf_from(&CORE->perf_blit);
+#if !PUN_PLATFORM_WINDOWS_D3D
         perf_from(&CORE->perf_blit_cvt);
         canvas_it = CORE->canvas.bitmap->pixels;
         for (y = PUN_CANVAS_HEIGHT; y != 0; --y) {
@@ -1824,21 +2319,26 @@ WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR command_line, int sho
             }
         }
         perf_to(&CORE->perf_blit_cvt);
+#endif
 
         perf_from(&CORE->perf_blit_gdi);
+#if PUN_PLATFORM_WINDOWS_D3D
+        punp_win32_d3d_render(window_buffer);
+#else
         HDC dc = GetDC(punp_win32_window);
-#if 1
-        // TODO: This is sadly slow (50us on my machine), need to find a faster way to do this.
+        // TODO: Draw the background.
         StretchDIBits(dc,
-                      0, 0, PUN_CANVAS_WIDTH * PUN_CANVAS_SCALE, PUN_CANVAS_HEIGHT * PUN_CANVAS_SCALE,
+                      CORE->viewport_min_x,
+                      CORE->viewport_min_y,
+                      CORE->viewport_max_x - CORE->viewport_min_x,
+                      CORE->viewport_max_y - CORE->viewport_min_y,
                       0, 0, PUN_CANVAS_WIDTH, PUN_CANVAS_HEIGHT,
                       window_buffer,
                       &window_bmi,
                       DIB_RGB_COLORS,
                       SRCCOPY);
-#else
-#endif
         ReleaseDC(punp_win32_window, dc);
+#endif
         perf_to(&CORE->perf_blit_gdi);
         perf_to(&CORE->perf_blit);
 
@@ -1853,13 +2353,17 @@ WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR command_line, int sho
         //     printf("Stack memory bank was not cleared.\n");
         // }
         bank_end(&stack_state);
-
+#if 1
         f32 frame_delta = perf_delta(&CORE->perf_frame);
         if (frame_delta < PUNP_FRAME_TIME) {
             // printf("sleeping ... %.3f\n", (f32)PUNP_FRAME_TIME - frame_delta);
             Sleep((PUNP_FRAME_TIME - frame_delta) * 1e3);
         }
+#endif
         CORE->frame++;
+        CORE->time = CORE->frame * PUNP_FRAME_TIME;
+        CORE->key_text_length = 0;
+        CORE->key_text[0] = 0;
     }
 
 #if PUNP_SOUND_DEBUG_FILE
@@ -1870,17 +2374,4 @@ WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR command_line, int sho
 }
 #endif
 
-#endif
-
-// ----------------------------------------------------------------------------
-// ----------------------------------------------------------------------------
-// ----------------------------------------------------------------------------
-
-
-#if 0
-int
-main(int argc, char **argv)
-{
-    return win32_main(argc, argv);
-}
 #endif

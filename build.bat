@@ -15,7 +15,15 @@ if "%1"=="gcc" (
 if "%compiler%"=="cl" (
 	echo Using MSVC
 	set common_c=..\main.c -nologo -D_WIN32_WINNT=0x0501 -MTd -TC -FC -EHa- -I..\ -I..\lib
-	set common_l=/link /OPT:REF user32.lib gdi32.lib winmm.lib main.res
+	set common_l=/link /OPT:REF notelemetry.obj user32.lib gdi32.lib winmm.lib main.res
+
+	if "%1"=="release" (
+		echo Building release shaders...
+		fxc /nologo /T ps_4_0 /Fo res/default.cso res/default.hlsl
+	) else (
+		echo Building debug shaders...
+		fxc /nologo /Od /Zi /T ps_4_0 /Fo res/default.cso res/default.hlsl
+	)
 
 	echo Building resources...
 	rc /nologo /fo bin\main.res main.rc
@@ -36,7 +44,7 @@ if "%compiler%"=="cl" (
 	popd
 ) else if "%compiler%"=="gcc" (
 	echo Using GCC
-	set common=main.c -o ./bin/main.exe ./bin/main.o -D_WIN32_WINNT=0x0501 -I./lib -I./mingw -I. -luser32 -lgdi32 -lwinmm
+	set common=main.c -std=gnu99 -o ./bin/main.exe ./bin/main.o -D_WIN32_WINNT=0x0501 -I./lib -I./mingw -I. -luser32 -lgdi32 -lwinmm
 
 	echo Building resources...
 	windres -i main.rc -o bin/main.o
@@ -47,7 +55,7 @@ if "%compiler%"=="cl" (
 		strip ./bin/main.exe
 	) else (
 		echo Building debug...
-		gcc -g %common%
+		gcc -g !common!
 	)
 ) else (
 	echo Invalid compiler specified.

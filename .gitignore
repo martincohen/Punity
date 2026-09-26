@@ -9,3 +9,5 @@ Punity.sublime-workspace
 build-min.bat
 punity-min.c
 punity-min.obj
+punity-d3d.cpp
+punity-d3d-2.cpp
