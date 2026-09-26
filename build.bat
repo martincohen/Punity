@@ -1,20 +1,27 @@
 @echo off
 
-rem SDL static build:
-rem The magical trick is to delete or rename the file "libSDL2.dll.a"
-rem http://stackoverflow.com/questions/17620884/static-linking-of-sdl2-libraries
-rem set SDL_DEPS=-lSDL2main -lSDL2 -lwinmm -limm32 -lole32 -loleaut32 -lversion
+set COMMON_FLAGS=-std=c99 -mwindows -I%~dp0. -lmingw32
+set TOOL_FLAGS=%COMMON_FLAGS% -w -Wl,-subsystem,console
+set MAIN_FLAGS=%COMMON_FLAGS% -I%~dp0lib/sdl/include -L%~dp0lib/sdl/lib -lSDL2main -lSDL2
 
-set SDL_DEPS=-lSDL2main -lSDL2
-set MLP_FLAGS=-std=c99 src/punity.c -mwindows -I%~dp0. -I%~dp0src -I%~dp0lib/sdl/include -L%~dp0lib/sdl/lib -lmingw32 %SDL_DEPS%
+echo ---------------------------------------------------------------------------
+echo Compiling IDs
+echo ---------------------------------------------------------------------------
+gcc src/punity_id.c %TOOL_FLAGS% -o bin/id.exe
+IF %ERRORLEVEL% NEQ 0 GOTO Errors
+
+%~dp0bin\id.exe %~dp0src/ %~dp0src/id_enum.h
 
 
 echo ---------------------------------------------------------------------------
 echo Compiling assets
 echo ---------------------------------------------------------------------------
-gcc -o bin/assets.exe -g -DASSETS %MLP_FLAGS%
+gcc src/punity_assets.c %TOOL_FLAGS% -D_DEBUG -o bin/assets.exe
+IF %ERRORLEVEL% NEQ 0 GOTO Errors
 
-bin\assets.exe %~dp0res/
+bin\assets.exe %~dp0/res
+IF %ERRORLEVEL% NEQ 0 GOTO Errors
+
 rem mv res\res.h src\res.h
 rem mv res\res.c src\res.c
 
@@ -22,9 +29,24 @@ echo ---------------------------------------------------------------------------
 echo Compiling program
 echo ---------------------------------------------------------------------------
 
-gcc -o bin/mlp.exe -O2 %MLP_FLAGS%
+rem gcc src/punity_main.c -O2 -D_DEBUG %MAIN_FLAGS% -o bin/release/mlp.exe
+gcc src/punity_main.c -g -DPATH_RES=\"\" -D_DEBUG %MAIN_FLAGS% -o bin/release/mlp.exe
+IF %ERRORLEVEL% NEQ 0 GOTO Errors
 
-strip bin\mlp.exe
+copy /Y bin\mlp.exe package\win32\mlp.exe
+copy /Y lib\SDL\bin\SDL2.dll package\win32\SDL2.dll
+copy /Y res\res_d.bin package\win32\res_d.bin
+
+rem strip bin\mlp.exe
+IF %ERRORLEVEL% NEQ 0 GOTO Errors
 
 echo ---------------------------------------------------------------------------
-echo Done
+echo Done.
+GOTO End
+
+:Errors:
+echo ---------------------------------------------------------------------------
+echo Errors found.
+
+
+:End

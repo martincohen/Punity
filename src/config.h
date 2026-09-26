@@ -16,7 +16,9 @@
 #define COLOR_SHADE_4     (4)
 #define COLOR_SHADE_5     (5)
 
+#ifndef PUNITY_ANDROID
 #define RECORDER
 #define RECORDER_SCALE (2)
 #define RECORDER_FRAME_COLOR_1 COLOR_WHITE
 #define RECORDER_FRAME_COLOR_2 COLOR_ACCENT
+#endif

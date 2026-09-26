@@ -55,8 +55,8 @@ extern void jo_gif_end(jo_gif_t *gif);
 #endif
 
 #include <stdlib.h>
-#include <memory.h>
 #include <math.h>
+#include <memory.h>
 
 #if 0
 // Based on NeuQuant algorithm

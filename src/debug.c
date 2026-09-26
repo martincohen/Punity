@@ -1,28 +1,27 @@
 #ifndef DEBUG_H
 #define DEBUG_H
 
-#include "main.h"
+#include "src/main.h"
 
 void
-debug_buttons(i32 x, i32 y)
+debug_buttons(ProgramInput *input, i32 x, i32 y)
 {
     V4i r = {{x, y, x + res_icons->cw, y + res_icons->ch}};
     u8 cf, cb;
-    for (u8 i = 0; i != _Button_MAX; ++i)
+    for (u8 i = 0; i != (Button_Y + 1); ++i)
     {
         cf = COLOR_SHADE_5;
         cb = 0;
-        if (PROGRAM->buttons[i].state & ButtonState_EndedDown) {
+        if (button_ended_down(input, i)) {
             cf = COLOR_WHITE;
             cb = COLOR_BLACK;
-        } else if (PROGRAM->buttons[i].state & ButtonState_EndedUp) {
+        } else if (button_ended_up(input, i)) {
             cf = COLOR_WHITE;
             cb = COLOR_BLACK;
-        } else if (PROGRAM->buttons[i].state & ButtonState_Down) {
+        } else if (button_down(input, i)) {
             cf = COLOR_BLACK;
             cb = COLOR_SHADE_5;
         }
-
 
         if (cb) {
             rect_draw(r, cb);
@@ -31,7 +30,7 @@ debug_buttons(i32 x, i32 y)
         if (cf) {
             image_set_draw(r.min_x, r.min_y,
                      res_icons, i,
-                     DrawSpriteMode_Mask, cf);
+                     ImageSetDrawMode_Mask, cf);
         }
 
         rect_tr(&r, res_icons->cw, 0);

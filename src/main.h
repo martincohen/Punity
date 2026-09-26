@@ -1,7 +1,7 @@
 #ifndef MAIN_H
 #define MAIN_H
 
-#include "punity_world.h"
+#include "lib/punity/punity_world.h"
 
 enum CustomAssetType
 {
@@ -15,30 +15,42 @@ typedef struct Spawn
 }
 Spawn;
 
+#define LEVEL_LAYERS_MAX (8)
+#define LEVEL_SPAWNS_MAX (256)
+
+typedef struct LayerProperties
+{
+    i32 parallax;
+}
+LayerProperties;
+
 typedef struct Level
 {
-    TileMap *layers[8];
+    Asset asset;
+
+    AssetHandle layers[LEVEL_LAYERS_MAX];
+    LayerProperties layer_properties[LEVEL_LAYERS_MAX];
     u32 layers_count;
+    u32 layer_main;
+    u32 layer_parallax;
 
-    TileMap *map_collision;
-    TileMap *map_meta;
-
-    ImageSet *set_main;
-    ImageSet *set_meta;
+    AssetHandle map_collision;
+    AssetHandle map_meta;
 
     V2i player_start;
-    Spawn spawns[256];
+    Spawn spawns[LEVEL_SPAWNS_MAX];
     u32 spawn_count;
 }
 Level;
 
 typedef struct Animation
 {
-    ImageSet *set;
+    AssetHandle set;
     u16 begin;
     u16 end;
 
     u16 sprite;
+    u16 sprite_time;
     u8 sprite_mode;
 }
 Animation;
@@ -53,14 +65,15 @@ EntityState;
 
 typedef enum EntityFlags
 {
-    EntityFlag_Grounded = 0x01
+    EntityFlag_Floor = 0x01,
+    EntityFlag_Ceil = 0x02
 }
 EntityFlags;
 
 typedef struct Entity
 {
-    u8 state;
-    u8 flags;
+    u32 state;
+    u32 flags;
     i32 dx;
     i32 vx;
     f32 vy;
@@ -70,6 +83,9 @@ typedef struct Entity
     Animation *animation;
 }
 Entity;
+
+#define flag_toggle_if(Flags, Condition, Flag) \
+    (Flags) = (Condition) ? ((Flags) | (Flag)) : ((Flags) & ~(Flag))
 
 #define entity_center_x(E) \
     ((E)->collider->x)
@@ -90,8 +106,8 @@ Entity;
     ((E)->collider->y + (E)->collider->h)
 
 #define entity_flip(E, On) E->animation->sprite_mode = On \
-    ? (E->animation->sprite_mode |  DrawSpriteMode_FlipH) \
-    : (E->animation->sprite_mode & ~DrawSpriteMode_FlipH)
+    ? (E->animation->sprite_mode |  ImageSetDrawMode_FlipH) \
+    : (E->animation->sprite_mode & ~ImageSetDrawMode_FlipH)
 
 typedef struct Camera
 {
@@ -117,11 +133,14 @@ typedef struct ProgramState
 
     World world;
 
+    Level *level;
     Entity *player;
 }
 ProgramState;
 
 extern ProgramState *GAME;
+
+Entity *entity_add(i32 x, i32 y, i32 w, i32 h, i32 ox, i32 oy);
 
 #endif // MAIN_H
 
